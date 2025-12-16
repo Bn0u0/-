@@ -1,4 +1,3 @@
-
 import Phaser from 'phaser';
 import { Player } from '../classes/Player';
 import { Enemy } from '../classes/Enemy';
@@ -6,29 +5,36 @@ import { COLORS, PHYSICS, FX } from '../../constants';
 import { EventBus } from '../../services/EventBus';
 import { UpgradeType } from '../../types';
 import { network } from '../../services/NetworkService';
+import { Vanguard } from '../classes/Vanguard';
+import { Weaver } from '../classes/Weaver';
+import { Projectile } from '../classes/Projectile';
+import { PowerupService, PowerupType } from '../../services/PowerupService';
+import { LootService, LootItemDef } from '../../services/LootService';
 
-type WaveState = 'PREPARING' | 'SPAWNING' | 'COMBAT' | 'COMPLETE';
+// Managers
+import { WaveManager } from '../managers/WaveManager';
+import { ExtractionManager } from '../managers/ExtractionManager';
+import { CombatManager } from '../managers/CombatManager';
+
 type GameMode = 'SINGLE' | 'MULTI';
 
 export class MainScene extends Phaser.Scene {
-    declare public game: Phaser.Game;
     declare public cameras: Phaser.Cameras.Scene2D.CameraManager;
     declare public add: Phaser.GameObjects.GameObjectFactory;
     declare public time: Phaser.Time.Clock;
     declare public events: Phaser.Events.EventEmitter;
     declare public physics: Phaser.Physics.Arcade.ArcadePhysics;
     declare public input: Phaser.Input.InputPlugin;
-    declare public scene: Phaser.Scenes.ScenePlugin;
     declare public scale: Phaser.Scale.ScaleManager;
 
     // Entities
     private commander: Player | null = null;
     private drone: Player | null = null;
-
     private myUnit: Player | null = null;
     private otherUnit: Player | null = null;
 
     private enemyGroup: Phaser.GameObjects.Group | null = null;
+    private projectileGroup: Phaser.GameObjects.Group | null = null;
     private graphics: Phaser.GameObjects.Graphics | null = null;
     private bgGrid: Phaser.GameObjects.Grid | null = null;
 
@@ -43,49 +49,65 @@ export class MainScene extends Phaser.Scene {
     private hp: number = 100;
     private maxHp: number = 100;
 
-    // Wave Manager
-    private wave: number = 1;
-    private waveState: WaveState = 'PREPARING';
-    private enemiesToSpawn: number = 0;
-    private spawnTimer: Phaser.Time.TimerEvent | null = null;
-    private nextWaveTimer: Phaser.Time.TimerEvent | null = null;
+    // Services & Managers
+    private powerupService!: PowerupService;
+    private lootService!: LootService;
+    private waveManager!: WaveManager;
+    private extractionManager!: ExtractionManager;
+    private combatManager!: CombatManager;
 
-    // Modifiers 
-    private statsModifiers = {
-        tetherLength: 1.0,
-        droneSpeed: 1.0,
-        playerSpeed: 1.0
-    };
+    private doubleScoreActive: boolean = false;
 
     // Network Inputs
     private lastSentTime: number = 0;
     private remoteInputVector = { x: 0, y: 0 };
+    private statsModifiers = { tetherLength: 1.0, droneSpeed: 1.0, playerSpeed: 1.0 };
+
+    public worldWidth: number = 4000;
+    public worldHeight: number = 4000;
 
     constructor() {
         super('MainScene');
     }
 
     create() {
-        this.resetGame();
-
         this.cameras.main.setBackgroundColor(COLORS.bg);
-        this.bgGrid = this.add.grid(0, 0, 4000, 4000, 100, 100, COLORS.bg, 0, COLORS.grid, 0.2);
+        this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
+
+        // Background
+        this.bgGrid = this.add.grid(this.worldWidth / 2, this.worldHeight / 2, this.worldWidth, this.worldHeight, 64, 64, COLORS.bg, 1, 0x222222, 0.2);
         this.bgGrid.setDepth(-10);
 
         this.graphics = this.add.graphics();
         this.graphics.setDepth(50);
 
+        // Groups
         this.enemyGroup = this.add.group({ classType: Enemy, runChildUpdate: true });
+        this.projectileGroup = this.add.group({ classType: Projectile, runChildUpdate: true });
 
-        // Listen for Mode Start
+        // Services
+        this.powerupService = new PowerupService(this);
+        this.lootService = new LootService(this);
+
+        // Managers
+        this.waveManager = new WaveManager(this, this.enemyGroup);
+        this.extractionManager = new ExtractionManager(this, this.worldWidth, this.worldHeight);
+        this.combatManager = new CombatManager(this);
+
+        // Wiring
+        this.waveManager.onNextWaveRequest = (nextWave) => this.startNewWave(nextWave);
+        this.extractionManager.spawnZones();
+
+        // Events
         EventBus.on('START_MATCH', this.handleStartMatch, this);
         EventBus.on('NETWORK_PACKET', this.handleNetworkPacket, this);
         EventBus.on('APPLY_UPGRADE', this.applyUpgrade, this);
+        EventBus.on('ENEMY_KILLED', (score: number) => this.awardScore(score));
 
         this.scale.on('resize', this.handleResize, this);
         this.events.on('shutdown', () => this.cleanup());
 
-        // Initial setup for camera mostly
+        this.resetGame();
         this.updateCameraZoom();
         this.emitStatsUpdate();
     }
@@ -103,41 +125,34 @@ export class MainScene extends Phaser.Scene {
     }
 
     handleStartMatch(mode: GameMode) {
-        // Defaults to MULTI if coming from direct network event without payload, 
-        // but App.tsx sends payload now.
         const actualMode = mode || (network.isHost ? 'MULTI' : 'MULTI');
         this.currentMode = actualMode;
         this.isGameActive = true;
-        console.log(`[MainScene] Match Started! Mode: ${this.currentMode}`);
-
         this.setupPlayers();
 
-        // Single Player: Start immediate
-        // Multi Host: Start immediate
-        // Multi Client: Wait for packets
         if (this.currentMode === 'SINGLE' || network.isHost) {
-            this.startWave(1);
+            this.startNewWave(1);
         }
 
         if (this.myUnit) {
             this.cameras.main.startFollow(this.myUnit, true, 0.08, 0.08);
+            this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
         }
     }
 
     setupPlayers() {
-        // Re-create Players
         if (this.commander) this.commander.destroy();
         if (this.drone) this.drone.destroy();
 
         if (this.currentMode === 'SINGLE') {
-            this.commander = new Player(this, 0, 0, 'COMMANDER', true);
-            this.drone = new Player(this, 200, 0, 'DRONE', false);
+            this.commander = new Vanguard(this, 0, 0, 'COMMANDER', true);
+            this.drone = new Weaver(this, 200, 0, 'DRONE', false);
             this.myUnit = this.commander;
             this.otherUnit = this.drone;
         } else {
             const isHost = network.isHost;
-            this.commander = new Player(this, 0, 0, 'COMMANDER', isHost);
-            this.drone = new Player(this, 200, 0, 'DRONE', !isHost);
+            this.commander = isHost ? new Vanguard(this, 0, 0, 'COMMANDER', isHost) : new Weaver(this, 0, 0, 'COMMANDER', isHost);
+            this.drone = !isHost ? new Vanguard(this, 200, 0, 'DRONE', !isHost) : new Weaver(this, 200, 0, 'DRONE', !isHost);
             this.myUnit = isHost ? this.commander : this.drone;
             this.otherUnit = isHost ? this.drone : this.commander;
         }
@@ -146,14 +161,24 @@ export class MainScene extends Phaser.Scene {
         this.drone.setDepth(100);
     }
 
+    startNewWave(wave: number) {
+        if (!this.commander) return;
+        this.waveManager.startWave(wave, { x: this.commander.x, y: this.commander.y });
+    }
+
     cleanup() {
         EventBus.off('NETWORK_PACKET', this.handleNetworkPacket, this);
         EventBus.off('APPLY_UPGRADE', this.applyUpgrade, this);
         EventBus.off('START_MATCH', this.handleStartMatch, this);
         this.scale.off('resize', this.handleResize, this);
-        if (this.spawnTimer) this.spawnTimer.remove(false);
-        if (this.nextWaveTimer) this.nextWaveTimer.remove(false);
-        if (this.enemyGroup) this.enemyGroup.clear(true, true);
+
+        this.waveManager.cleanup();
+        this.enemyGroup?.clear(true, true);
+        this.projectileGroup?.clear(true, true);
+
+        if (this.powerupService && (this.powerupService as any).timer) {
+            (this.powerupService as any).timer.remove(false);
+        }
     }
 
     resetGame() {
@@ -162,34 +187,33 @@ export class MainScene extends Phaser.Scene {
         this.xp = 0;
         this.score = 0;
         this.hp = 100;
-        this.wave = 1;
         this.isPaused = false;
         this.physics.resume();
+        this.waveManager.reset();
         if (this.enemyGroup) this.enemyGroup.clear(true, true);
     }
 
     update(time: number, delta: number) {
         this.updateBackground(time);
-
         if (!this.isGameActive || this.isPaused) return;
 
         // 1. Inputs
         this.processLocalInput();
 
-        // 2. Second Unit Movement
+        // 2. Drone Logic
         if (this.currentMode === 'SINGLE') {
             this.updateDroneAI();
         } else if (network.isHost) {
             this.processDroneMovementAsHost();
         }
 
-        // 3. Game Logic (Host/Single Authoritative)
+        // 3. Logic (Host/Single)
         if (this.currentMode === 'SINGLE' || network.isHost) {
             this.enemyGroup?.getChildren().forEach((child) => {
                 (child as Enemy).seekPlayer([this.commander!, this.drone!], 100);
             });
-            this.checkCollisions();
-            this.checkWaveStatus();
+            this.runCombatLogic();
+            this.waveManager.update();
 
             if (this.currentMode === 'MULTI') {
                 this.broadcastGameState(time);
@@ -198,35 +222,71 @@ export class MainScene extends Phaser.Scene {
             this.sendClientInput(time);
         }
 
-        // 4. Visuals
-        this.renderTethers(time);
+        // 4. Shared Mechanics
+        this.combatManager.updateCombatAI(this.commander!, this.drone, this.enemyGroup!, this.projectileGroup!);
+        this.handlePowerupCollisions();
+        this.handleLootCollection();
+        this.handleExtraction(); // Check Zone overlap
+
+        // 5. Visuals
         this.commander?.update();
         this.drone?.update();
     }
 
-    updateDroneAI() {
-        if (!this.drone || !this.commander) return;
-        const orbitSpeed = 0.02;
-        const desiredDist = 180;
-
-        // Simple Orbit Logic
-        const angle = Phaser.Math.Angle.Between(this.commander.x, this.commander.y, this.drone.x, this.drone.y);
-        const targetAngle = angle + orbitSpeed;
-        const targetX = this.commander.x + Math.cos(targetAngle) * desiredDist;
-        const targetY = this.commander.y + Math.sin(targetAngle) * desiredDist;
-
-        const dx = targetX - this.drone.x;
-        const dy = targetY - this.drone.y;
-
-        const body = this.drone.body as Phaser.Physics.Arcade.Body;
-        body.setVelocity(dx * 4, dy * 4);
-        this.drone.rotation += 0.05;
+    runCombatLogic() {
+        const players = [this.commander!, this.drone!].filter(p => !!p);
+        this.combatManager.checkCollisions(
+            this.projectileGroup!,
+            this.enemyGroup!,
+            players,
+            (amt) => this.takeDamage(amt),
+            (enemy) => {
+                this.awardScore(10);
+                this.xp += 1;
+                if (this.xp >= this.xpToNextLevel) this.levelUp();
+            }
+        );
     }
 
+    handleExtraction() {
+        if (!this.myUnit) return;
+        if (this.extractionManager.checkExtraction(this.myUnit)) {
+            this.handleSearchExtractSuccess();
+        }
+    }
+
+    handleSearchExtractSuccess() {
+        this.physics.pause();
+        this.isGameActive = false;
+
+        // Overlay
+        this.add.rectangle(0, 0, this.cameras.main.width, this.cameras.main.height, 0x000000, 0.8)
+            .setScrollFactor(0).setDepth(1000);
+
+        this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 3, 'EXTRACTION SUCCESSFUL', {
+            fontSize: '48px', color: '#00FF00', fontStyle: 'bold'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(1001);
+
+        // Loot List
+        let lootList = "LOOT SECURED:\n";
+        if (this.myUnit) {
+            this.myUnit.lootBag.forEach(item => lootList += `> ${item.name}\n`);
+        }
+
+        this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2, lootList, {
+            fontSize: '24px', color: '#FFFFFF'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(1001);
+    }
+
+    // --- Inputs & Movement (Too specific to Scene input plugin to easily extract without heavy refactor) ---
     processLocalInput() {
         if (!this.myUnit) return;
         const body = this.myUnit.body as Phaser.Physics.Arcade.Body;
         const pointer = this.input.activePointer;
+
+        if (this.input.keyboard && this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE).isDown) {
+            this.myUnit.dash();
+        }
 
         if (pointer.isDown) {
             const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
@@ -240,7 +300,6 @@ export class MainScene extends Phaser.Scene {
             body.setDrag(PHYSICS.drag);
             body.setAcceleration(inputVecX * accel, inputVecY * accel);
 
-            // Rotate towards movement
             const targetRotation = angle + Math.PI / 2;
             const nextRotation = Phaser.Math.Angle.RotateTo(this.myUnit.rotation, targetRotation, PHYSICS.rotationLerp);
             this.myUnit.setRotation(nextRotation);
@@ -249,15 +308,28 @@ export class MainScene extends Phaser.Scene {
         }
     }
 
+    updateDroneAI() {
+        if (!this.drone || !this.commander) return;
+        const orbitSpeed = 0.02;
+        const desiredDist = 180;
+        const angle = Phaser.Math.Angle.Between(this.commander.x, this.commander.y, this.drone.x, this.drone.y);
+        const targetAngle = angle + orbitSpeed;
+        const targetX = this.commander.x + Math.cos(targetAngle) * desiredDist;
+        const targetY = this.commander.y + Math.sin(targetAngle) * desiredDist;
+        const dx = targetX - this.drone.x;
+        const dy = targetY - this.drone.y;
+        const body = this.drone.body as Phaser.Physics.Arcade.Body;
+        body.setVelocity(dx * 4, dy * 4);
+        this.drone.rotation += 0.05;
+    }
+
     processDroneMovementAsHost() {
         if (!this.drone) return;
         const body = this.drone.body as Phaser.Physics.Arcade.Body;
-
         if (this.remoteInputVector.x !== 0 || this.remoteInputVector.y !== 0) {
             const accel = PHYSICS.acceleration * this.statsModifiers.droneSpeed;
             body.setDrag(PHYSICS.drag);
             body.setAcceleration(this.remoteInputVector.x * accel, this.remoteInputVector.y * accel);
-
             const angle = Math.atan2(this.remoteInputVector.y, this.remoteInputVector.x);
             const targetRotation = angle + Math.PI / 2;
             this.drone.setRotation(Phaser.Math.Angle.RotateTo(this.drone.rotation, targetRotation, PHYSICS.rotationLerp));
@@ -266,6 +338,109 @@ export class MainScene extends Phaser.Scene {
         }
     }
 
+    // --- Services & State ---
+    private handlePowerupCollisions() {
+        if (!this.myUnit) return;
+        this.physics.overlap(this.myUnit, (this.powerupService as any).group, (playerObj: any, powerupObj: any) => {
+            const { type, duration } = this.powerupService.collectPowerup(powerupObj);
+            const player = playerObj as any;
+            switch (type) {
+                case PowerupType.Speed:
+                    player.speedMultiplier = 2;
+                    this.time.delayedCall(duration * 1000, () => { player.speedMultiplier = 1; });
+                    break;
+                case PowerupType.Shield:
+                    player.shielded = true;
+                    this.time.delayedCall(duration * 1000, () => { player.shielded = false; });
+                    break;
+                case PowerupType.DoubleScore:
+                    this.doubleScoreActive = true;
+                    this.time.delayedCall(duration * 1000, () => { this.doubleScoreActive = false; });
+                    break;
+            }
+        });
+    }
+
+    private handleLootCollection() {
+        if (!this.myUnit) return;
+        this.physics.overlap(this.myUnit, this.lootService.group, (p: any, l: any) => {
+            const player = p as Player;
+            const loot = l as Phaser.GameObjects.Container;
+            const item = loot.getData('item') as LootItemDef;
+
+            if (player.lootBag.length < 5) {
+                player.lootBag.push(item);
+                loot.destroy();
+                this.events.emit('LOOT_PICKUP', item);
+                const txt = this.add.text(player.x, player.y - 50, `+${item.name}`, {
+                    fontSize: '16px', color: '#ffffff', stroke: '#000', strokeThickness: 2
+                }).setOrigin(0.5);
+                this.tweens.add({
+                    targets: txt, y: player.y - 100, alpha: 0, duration: 1000, onComplete: () => txt.destroy()
+                });
+            }
+        });
+    }
+
+    takeDamage(amt: number) {
+        this.cameras.main.shake(200, 0.01);
+        this.hp -= amt;
+        if (this.hp <= 0) {
+            this.hp = 0;
+            if (this.currentMode === 'MULTI' && network.isHost) {
+                network.broadcast({ type: 'GAME_OVER', payload: { score: this.score } });
+            }
+            this.gameOver();
+        }
+        this.emitStatsUpdate();
+    }
+
+    awardScore(base: number) {
+        const amount = this.doubleScoreActive ? base * 2 : base;
+        this.score += amount;
+    }
+
+    levelUp() {
+        this.level++;
+        this.xp = 0;
+        this.xpToNextLevel = Math.floor(this.xpToNextLevel * 1.5);
+        this.isPaused = true;
+        EventBus.emit('LEVEL_UP', this.level);
+    }
+
+    applyUpgrade(type: UpgradeType) {
+        this.isPaused = false;
+    }
+
+    gameOver() {
+        EventBus.emit('GAME_OVER', { score: this.score, wave: this.waveManager.wave, level: this.level });
+        this.isPaused = true;
+        this.isGameActive = false;
+        this.physics.pause();
+    }
+
+    updateBackground(time: number) {
+        if (this.bgGrid) {
+            this.bgGrid.setAlpha(0.15 + Math.sin(time / 3000) * 0.05);
+            (this.bgGrid as any).tilePositionX = this.cameras.main.scrollX * 0.5;
+            (this.bgGrid as any).tilePositionY = this.cameras.main.scrollY * 0.5;
+        }
+    }
+
+    emitStatsUpdate() {
+        EventBus.emit('STATS_UPDATE', {
+            hp: this.hp,
+            maxHp: this.maxHp,
+            level: this.level,
+            xp: this.xp,
+            xpToNextLevel: this.xpToNextLevel,
+            score: this.score,
+            wave: this.waveManager.wave,
+            enemiesAlive: this.enemyGroup?.countActive() || 0
+        });
+    }
+
+    // --- Network (Keep as is mostly, tightly coupled to state) ---
     sendClientInput(time: number) {
         if (time - this.lastSentTime < 33) return;
         const pointer = this.input.activePointer;
@@ -290,7 +465,7 @@ export class MainScene extends Phaser.Scene {
             payload: {
                 c: { x: Math.round(this.commander!.x), y: Math.round(this.commander!.y), r: this.commander!.rotation },
                 d: { x: Math.round(this.drone!.x), y: Math.round(this.drone!.y), r: this.drone!.rotation },
-                s: { hp: this.hp, sc: this.score, w: this.wave, l: this.level }
+                s: { hp: this.hp, sc: this.score, w: this.waveManager.wave, l: this.level }
             }
         });
         this.lastSentTime = time;
@@ -310,157 +485,13 @@ export class MainScene extends Phaser.Scene {
             if (s.s) {
                 this.hp = s.s.hp;
                 this.score = s.s.sc;
-                this.wave = s.s.w;
+                this.waveManager.wave = s.s.w;
                 this.level = s.s.l;
                 this.emitStatsUpdate();
             }
         }
         else if (data.type === 'GAME_OVER') {
             this.gameOver();
-        }
-    }
-
-    startWave(waveNumber: number) {
-        this.wave = waveNumber;
-        this.waveState = 'SPAWNING';
-        const isElite = this.wave % 5 === 0;
-        this.enemiesToSpawn = 8 + (this.wave * 2);
-
-        EventBus.emit('WAVE_START', { wave: this.wave, isElite });
-
-        if (this.spawnTimer) this.spawnTimer.remove(false);
-        this.spawnTimer = this.time.addEvent({
-            delay: isElite ? 400 : 800,
-            callback: () => {
-                if (this.enemiesToSpawn > 0) {
-                    this.spawnEnemy(isElite);
-                    this.enemiesToSpawn--;
-                } else {
-                    this.waveState = 'COMBAT';
-                    this.spawnTimer?.remove(false);
-                }
-            },
-            loop: true
-        });
-    }
-
-    spawnEnemy(isElite: boolean) {
-        if (!this.commander) return;
-        const radius = 800 + Math.random() * 400;
-        const angle = Math.random() * Math.PI * 2;
-        const x = this.commander.x + Math.cos(angle) * radius;
-        const y = this.commander.y + Math.sin(angle) * radius;
-
-        const enemy = new Enemy(this, x, y);
-        enemy.setDifficulty(1 + (this.wave * 0.05), 1 + (this.wave * 0.1), isElite);
-        this.enemyGroup?.add(enemy);
-    }
-
-    checkCollisions() {
-        if (!this.commander || !this.drone) return;
-
-        // Tether Kill
-        const dist = Phaser.Math.Distance.Between(this.commander.x, this.commander.y, this.drone.x, this.drone.y);
-        const maxLen = PHYSICS.tetherDistance * 2.2 * this.statsModifiers.tetherLength;
-
-        if (dist < maxLen) {
-            const line = new Phaser.Geom.Line(this.commander.x, this.commander.y, this.drone.x, this.drone.y);
-            const enemies = this.enemyGroup?.getChildren() as Enemy[];
-
-            enemies.forEach(enemy => {
-                if (enemy.isDead) return;
-                if (Phaser.Geom.Intersects.LineToCircle(line, new Phaser.Geom.Circle(enemy.x, enemy.y, 15))) {
-                    enemy.kill();
-                    this.score += 10;
-                    this.xp += 1;
-                    if (this.xp >= this.xpToNextLevel) this.levelUp();
-                    this.emitStatsUpdate();
-                }
-            });
-        }
-
-        // Player Damage
-        const enemies = this.enemyGroup?.getChildren() as Enemy[];
-        enemies.forEach(enemy => {
-            if (enemy.isDead) return;
-            if (Phaser.Math.Distance.Between(enemy.x, enemy.y, this.commander!.x, this.commander!.y) < 30) {
-                this.takeDamage(10);
-                enemy.kill();
-            }
-        });
-    }
-
-    takeDamage(amt: number) {
-        this.hp -= amt;
-        if (this.hp <= 0) {
-            this.hp = 0;
-            if (this.currentMode === 'MULTI' && network.isHost) {
-                network.broadcast({ type: 'GAME_OVER', payload: { score: this.score } });
-            }
-            this.gameOver();
-        }
-        this.emitStatsUpdate();
-    }
-
-    gameOver() {
-        EventBus.emit('GAME_OVER', { score: this.score, wave: this.wave, level: this.level });
-        this.isPaused = true;
-        this.isGameActive = false;
-        this.physics.pause();
-    }
-
-    checkWaveStatus() {
-        if (this.waveState === 'COMBAT' && this.enemyGroup?.countActive() === 0) {
-            this.waveState = 'COMPLETE';
-            EventBus.emit('WAVE_COMPLETE', this.wave);
-            this.nextWaveTimer = this.time.delayedCall(3000, () => this.startWave(this.wave + 1));
-        }
-    }
-
-    levelUp() {
-        this.level++;
-        this.xp = 0;
-        this.xpToNextLevel = Math.floor(this.xpToNextLevel * 1.5);
-        this.isPaused = true;
-        EventBus.emit('LEVEL_UP', this.level);
-    }
-
-    applyUpgrade(type: UpgradeType) {
-        this.isPaused = false;
-    }
-
-    updateBackground(time: number) {
-        if (this.bgGrid) {
-            this.bgGrid.setAlpha(0.15 + Math.sin(time / 3000) * 0.05);
-            (this.bgGrid as any).tilePositionX = this.cameras.main.scrollX * 0.5;
-            (this.bgGrid as any).tilePositionY = this.cameras.main.scrollY * 0.5;
-        }
-    }
-
-    emitStatsUpdate() {
-        EventBus.emit('STATS_UPDATE', {
-            hp: this.hp,
-            maxHp: this.maxHp,
-            level: this.level,
-            xp: this.xp,
-            xpToNextLevel: this.xpToNextLevel,
-            score: this.score,
-            wave: this.wave,
-            enemiesAlive: this.enemyGroup?.countActive() || 0
-        });
-    }
-
-    renderTethers(time: number) {
-        if (!this.graphics || !this.commander || !this.drone) return;
-        this.graphics.clear();
-        const p1 = this.commander;
-        const p2 = this.drone;
-        const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
-        const maxLen = PHYSICS.tetherDistance * 2.2 * this.statsModifiers.tetherLength;
-
-        if (dist < maxLen) {
-            this.graphics.lineStyle(4, COLORS.primary, 0.6);
-            this.graphics.strokeLineShape(new Phaser.Geom.Line(p1.x, p1.y, p2.x, p2.y));
         }
     }
 }

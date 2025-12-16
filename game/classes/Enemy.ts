@@ -8,8 +8,25 @@ export class Enemy extends Phaser.GameObjects.Container {
     public isDead: boolean = false;
 
     // Custom stats
-    private hp: number = 1;
-    private moveSpeed: number = 100;
+    protected hp: number = 1;
+    protected moveSpeed: number = 100;
+
+    public takeDamage(damage: number): boolean {
+        this.hp -= damage;
+        // Flash white
+        this.scene.tweens.add({
+            targets: this.graphics,
+            alpha: { from: 0.2, to: 1 },
+            duration: 50,
+            yoyo: true
+        });
+
+        if (this.hp <= 0) {
+            this.kill();
+            return true;
+        }
+        return false;
+    }
 
     declare public scene: Phaser.Scene;
     declare public x: number;
@@ -24,16 +41,28 @@ export class Enemy extends Phaser.GameObjects.Container {
     declare public setRotation: (radians?: number) => this;
     declare public destroy: (fromScene?: boolean) => void;
 
-    private graphics: Phaser.GameObjects.Graphics;
+    protected graphics: Phaser.GameObjects.Graphics;
+    protected shadow: Phaser.GameObjects.Ellipse;
+
+    // 2.5D
+    public z: number = 0;
+    public zVelocity: number = 0;
 
     constructor(scene: Phaser.Scene, x: number, y: number) {
         super(scene, x, y);
         this.id = Math.random().toString(36).substr(2, 9);
 
+        // 0. Shadow
+        this.shadow = scene.add.ellipse(0, 0, 30, 10, 0x000000, 0.4);
+        this.add(this.shadow);
+
         // 1. Visuals: Rhombus
         this.graphics = scene.add.graphics();
         this.drawShape(COLORS.secondary);
         this.add(this.graphics);
+
+        // Lift graphics slightly so it sits "on" the shadow visually
+        this.graphics.y = -5;
 
         this.setRotation(Math.PI / 4);
 
@@ -158,5 +187,26 @@ export class Enemy extends Phaser.GameObjects.Container {
 
         emitter.explode(6);
         this.scene.time.delayedCall(500, () => emitter.destroy());
+    }
+
+    update() {
+        // 2.5D Gravity
+        if (this.z > 0 || this.zVelocity !== 0) {
+            this.z += this.zVelocity;
+            this.zVelocity -= 0.8;
+            if (this.z < 0) {
+                this.z = 0;
+                this.zVelocity = 0;
+            }
+        }
+
+        // Sync Visuals
+        this.graphics.y = -this.z - 5;
+        if (this.shadow) {
+            this.shadow.setScale(1 - (this.z / 200));
+            this.shadow.setAlpha(0.4 - (this.z / 300));
+        }
+
+        this.setDepth(this.y);
     }
 }

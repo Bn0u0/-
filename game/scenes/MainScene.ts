@@ -1,12 +1,16 @@
 import Phaser from 'phaser';
 import { Player } from '../classes/Player';
 import { Enemy } from '../classes/Enemy';
+import confetti from 'canvas-confetti';
 import { COLORS, PHYSICS, FX } from '../../constants';
 import { EventBus } from '../../services/EventBus';
 import { UpgradeType } from '../../types';
 import { network } from '../../services/NetworkService';
 import { Vanguard } from '../classes/Vanguard';
 import { Weaver } from '../classes/Weaver';
+import { Spectre } from '../classes/Spectre';
+import { Bastion } from '../classes/Bastion';
+import { Catalyst } from '../classes/Catalyst';
 import { Projectile } from '../classes/Projectile';
 import { PowerupService, PowerupType } from '../../services/PowerupService';
 import { LootService, LootItemDef } from '../../services/LootService';
@@ -15,6 +19,9 @@ import { LootService, LootItemDef } from '../../services/LootService';
 import { WaveManager } from '../managers/WaveManager';
 import { ExtractionManager } from '../managers/ExtractionManager';
 import { CombatManager } from '../managers/CombatManager';
+import { TerrainManager } from '../managers/TerrainManager';
+import { PlayerFactory } from '../factories/PlayerFactory';
+import { InputSystem } from '../systems/InputSystem';
 
 type GameMode = 'SINGLE' | 'MULTI';
 
@@ -55,6 +62,12 @@ export class MainScene extends Phaser.Scene {
     private waveManager!: WaveManager;
     private extractionManager!: ExtractionManager;
     private combatManager!: CombatManager;
+    private terrainManager!: TerrainManager;
+    private playerFactory!: PlayerFactory;
+    private inputSystem!: InputSystem;
+
+    // Player Choice
+    private myClass: string = 'Vanguard';
 
     private doubleScoreActive: boolean = false;
 
@@ -74,9 +87,8 @@ export class MainScene extends Phaser.Scene {
         this.cameras.main.setBackgroundColor(COLORS.bg);
         this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
 
-        // Background
-        this.bgGrid = this.add.grid(this.worldWidth / 2, this.worldHeight / 2, this.worldWidth, this.worldHeight, 64, 64, COLORS.bg, 1, 0x222222, 0.2);
-        this.bgGrid.setDepth(-10);
+        // Background handled by TerrainManager now
+        // this.bgGrid = this.add.grid...
 
         this.graphics = this.add.graphics();
         this.graphics.setDepth(50);
@@ -93,6 +105,19 @@ export class MainScene extends Phaser.Scene {
         this.waveManager = new WaveManager(this, this.enemyGroup);
         this.extractionManager = new ExtractionManager(this, this.worldWidth, this.worldHeight);
         this.combatManager = new CombatManager(this);
+        this.terrainManager = new TerrainManager(this);
+        this.playerFactory = new PlayerFactory(this);
+        this.playerFactory = new PlayerFactory(this);
+
+        this.extractionManager.setTerrainManager(this.terrainManager); // Inject dependency
+
+        this.terrainManager.generateWorld(30, 30); // ~2000x2000 world
+
+        // Check Projectile <-> Wall collision
+        this.physics.add.collider(this.projectileGroup!, this.terrainManager.wallGroup, (proj: any) => {
+            // Visual spark?
+            proj.destroy();
+        });
 
         // Wiring
         this.waveManager.onNextWaveRequest = (nextWave) => this.startNewWave(nextWave);
@@ -124,9 +149,15 @@ export class MainScene extends Phaser.Scene {
         this.cameras.main.zoomTo(zoom, 1000, 'Power2');
     }
 
-    handleStartMatch(mode: GameMode) {
+    handleStartMatch(data: any) {
+        // Handle both string (legacy) and object payload
+        const mode = (typeof data === 'string') ? data : data.mode;
+        if (typeof data === 'object' && data.hero) {
+            this.myClass = data.hero;
+        }
+
         const actualMode = mode || (network.isHost ? 'MULTI' : 'MULTI');
-        this.currentMode = actualMode;
+        this.currentMode = actualMode as GameMode;
         this.isGameActive = true;
         this.setupPlayers();
 
@@ -145,14 +176,24 @@ export class MainScene extends Phaser.Scene {
         if (this.drone) this.drone.destroy();
 
         if (this.currentMode === 'SINGLE') {
-            this.commander = new Vanguard(this, 0, 0, 'COMMANDER', true);
+            this.commander = this.playerFactory.createPlayer(this.myClass, 0, 0, 'COMMANDER', true);
             this.drone = new Weaver(this, 200, 0, 'DRONE', false);
             this.myUnit = this.commander;
             this.otherUnit = this.drone;
         } else {
             const isHost = network.isHost;
-            this.commander = isHost ? new Vanguard(this, 0, 0, 'COMMANDER', isHost) : new Weaver(this, 0, 0, 'COMMANDER', isHost);
-            this.drone = !isHost ? new Vanguard(this, 200, 0, 'DRONE', !isHost) : new Weaver(this, 200, 0, 'DRONE', !isHost);
+            // For Multiplayer, we need to know other player's class. 
+            // Phase 4 MVP: Defaults to Vanguard for remote, or sync it via Network Handshake (Not implemented yet).
+            // Let's assume Remote is Vanguard for now until we add handshake.
+
+            if (isHost) {
+                this.commander = this.playerFactory.createPlayer(this.myClass, 0, 0, 'COMMANDER', true);
+                this.drone = new Vanguard(this, 200, 0, 'DRONE', false); // Remote
+            } else {
+                this.commander = new Vanguard(this, 0, 0, 'COMMANDER', false); // Remote
+                this.drone = this.playerFactory.createPlayer(this.myClass, 200, 0, 'DRONE', true);
+            }
+
             this.myUnit = isHost ? this.commander : this.drone;
             this.otherUnit = isHost ? this.drone : this.commander;
         }
@@ -160,6 +201,8 @@ export class MainScene extends Phaser.Scene {
         this.commander.setDepth(100);
         this.drone.setDepth(100);
     }
+
+    // createPlayerClass removed - logic moved to PlayerFactory
 
     startNewWave(wave: number) {
         if (!this.commander) return;
@@ -267,6 +310,29 @@ export class MainScene extends Phaser.Scene {
             fontSize: '48px', color: '#00FF00', fontStyle: 'bold'
         }).setOrigin(0.5).setScrollFactor(0).setDepth(1001);
 
+        // Emit Persistence
+        if (this.myUnit) {
+            EventBus.emit('EXTRACTION_SUCCESS', this.myUnit.lootBag);
+
+            // JUICE: Confetti Explosion
+            const count = 200;
+            const defaults = {
+                origin: { y: 0.7 }
+            };
+
+            function fire(particleRatio: number, opts: any) {
+                confetti(Object.assign({}, defaults, opts, {
+                    particleCount: Math.floor(count * particleRatio)
+                }));
+            }
+
+            fire(0.25, { spread: 26, startVelocity: 55 });
+            fire(0.2, { spread: 60 });
+            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
+            fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
+            fire(0.1, { spread: 120, startVelocity: 45 });
+        }
+
         // Loot List
         let lootList = "LOOT SECURED:\n";
         if (this.myUnit) {
@@ -278,34 +344,10 @@ export class MainScene extends Phaser.Scene {
         }).setOrigin(0.5).setScrollFactor(0).setDepth(1001);
     }
 
-    // --- Inputs & Movement (Too specific to Scene input plugin to easily extract without heavy refactor) ---
+    // --- Inputs & Movement ---
     processLocalInput() {
         if (!this.myUnit) return;
-        const body = this.myUnit.body as Phaser.Physics.Arcade.Body;
-        const pointer = this.input.activePointer;
-
-        if (this.input.keyboard && this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE).isDown) {
-            this.myUnit.dash();
-        }
-
-        if (pointer.isDown) {
-            const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-            const dx = worldPoint.x - this.myUnit.x;
-            const dy = worldPoint.y - this.myUnit.y;
-            const angle = Math.atan2(dy, dx);
-            const inputVecX = Math.cos(angle);
-            const inputVecY = Math.sin(angle);
-
-            const accel = PHYSICS.acceleration * this.statsModifiers.playerSpeed;
-            body.setDrag(PHYSICS.drag);
-            body.setAcceleration(inputVecX * accel, inputVecY * accel);
-
-            const targetRotation = angle + Math.PI / 2;
-            const nextRotation = Phaser.Math.Angle.RotateTo(this.myUnit.rotation, targetRotation, PHYSICS.rotationLerp);
-            this.myUnit.setRotation(nextRotation);
-        } else {
-            body.setAcceleration(0, 0);
-        }
+        this.inputSystem.processInput(this.input, this.cameras, this.myUnit, this.statsModifiers);
     }
 
     updateDroneAI() {
@@ -436,7 +478,9 @@ export class MainScene extends Phaser.Scene {
             xpToNextLevel: this.xpToNextLevel,
             score: this.score,
             wave: this.waveManager.wave,
-            enemiesAlive: this.enemyGroup?.countActive() || 0
+            enemiesAlive: this.enemyGroup?.countActive() || 0,
+            cooldowns: this.myUnit ? this.myUnit.cooldowns : {},
+            maxCooldowns: this.myUnit ? this.myUnit.maxCooldowns : {},
         });
     }
 

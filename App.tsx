@@ -3,6 +3,9 @@ import React, { useState, useEffect } from 'react';
 import './App.css'; // Import the new styles
 import { PhaserGame } from './game/PhaserGame';
 import { GameOverlay } from './components/GameOverlay';
+import { MainMenu } from './components/MainMenu';
+import { HeroSelection } from './components/HeroSelection';
+import { BootScreen } from './components/BootScreen';
 import { UpgradeOption, UPGRADE_POOL_DATA } from './types';
 import { EventBus } from './services/EventBus';
 import { network } from './services/NetworkService';
@@ -10,8 +13,9 @@ import { persistence } from './services/PersistenceService';
 
 const App: React.FC = () => {
     // Exact same state logic as before
-    const [gameState, setGameState] = useState<'BOOT' | 'LOBBY' | 'PLAYING' | 'GAMEOVER'>('BOOT');
+    const [gameState, setGameState] = useState<'BOOT' | 'MAIN_MENU' | 'HERO_SELECT' | 'LOBBY' | 'PLAYING' | 'GAMEOVER'>('BOOT');
     const [lobbyMode, setLobbyMode] = useState<'SOLO' | 'DUO'>('SOLO');
+    const [selectedHero, setSelectedHero] = useState<string>('Vanguard'); // Default
 
     const [showLevelUp, setShowLevelUp] = useState(false);
     const [randomUpgrades, setRandomUpgrades] = useState<UpgradeOption[]>([]);
@@ -36,7 +40,7 @@ const App: React.FC = () => {
             setBootProgress(prev => {
                 if (prev >= 100) {
                     clearInterval(interval);
-                    setTimeout(() => setGameState('LOBBY'), 500);
+                    setTimeout(() => setGameState('MAIN_MENU'), 500);
                     return 100;
                 }
                 return prev + 15;
@@ -69,10 +73,18 @@ const App: React.FC = () => {
             setGameState('GAMEOVER');
         };
 
+        const onExtractionSuccess = (items: any[]) => {
+            const currentData = persistence.getData();
+            const newStash = [...(currentData.lootStash || []), ...items.map(i => i.name)];
+            persistence.save({ lootStash: newStash });
+            // Maybe show a dedicated victory screen later, for now MainScene handles overlay
+        };
+
         const onSTART_MATCH = () => setGameState('PLAYING');
 
         EventBus.on('LEVEL_UP', onLevelUp);
         EventBus.on('GAME_OVER', onGameOver);
+        EventBus.on('EXTRACTION_SUCCESS', onExtractionSuccess);
         EventBus.on('NETWORK_CONNECTED', onNETWORK_CONNECTED);
         EventBus.on('NETWORK_DISCONNECTED', onNETWORK_DISCONNECTED);
         EventBus.on('START_MATCH', onSTART_MATCH);
@@ -80,6 +92,7 @@ const App: React.FC = () => {
         return () => {
             EventBus.off('LEVEL_UP', onLevelUp);
             EventBus.off('GAME_OVER', onGameOver);
+            EventBus.off('EXTRACTION_SUCCESS', onExtractionSuccess);
             EventBus.off('NETWORK_CONNECTED', onNETWORK_CONNECTED);
             EventBus.off('NETWORK_DISCONNECTED', onNETWORK_DISCONNECTED);
             EventBus.off('START_MATCH', onSTART_MATCH);
@@ -87,14 +100,14 @@ const App: React.FC = () => {
     }, []);
 
     const handleStartSolo = () => {
-        EventBus.emit('START_MATCH', 'SINGLE');
+        EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: selectedHero });
         setGameState('PLAYING');
     };
 
     const handleStartDuo = () => {
         if (isHost && connectionStatus === 'CONNECTED') {
             network.broadcast({ type: 'START_MATCH' });
-            EventBus.emit('START_MATCH', 'MULTI');
+            EventBus.emit('START_MATCH', { mode: 'MULTI', hero: selectedHero });
             setGameState('PLAYING');
         }
     };
@@ -143,16 +156,26 @@ const App: React.FC = () => {
             {gameState === 'PLAYING' && <GameOverlay />}
 
             {/* BOOT SCREEN */}
-            {gameState === 'BOOT' && (
-                <div className="ui-layer" style={{ background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-                    <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '4rem', animation: 'float 2s infinite' }}>🐰</div>
-                        <div style={{ width: '200px', height: '10px', background: '#eee', borderRadius: '10px', margin: '20px auto', overflow: 'hidden' }}>
-                            <div style={{ width: `${bootProgress}%`, height: '100%', background: `var(--primary-1)`, transition: 'width 0.2s' }}></div>
-                        </div>
-                        <div style={{ color: 'var(--primary-1)', fontWeight: 'bold' }}>LOADING...</div>
-                    </div >
-                </div >
+            {gameState === 'BOOT' && <BootScreen progress={bootProgress} />}
+
+            {/* NEW UI FLOWS */}
+            {gameState === 'MAIN_MENU' && (
+                <MainMenu
+                    onStart={() => setGameState('HERO_SELECT')}
+                    currentHero={selectedHero}
+                />
+            )}
+
+            {gameState === 'HERO_SELECT' && (
+                <HeroSelection
+                    onSelect={(heroId) => {
+                        setSelectedHero(heroId);
+                        // Store hero choice somewhere? For now pass to lobby or direct start?
+                        // Let's go to Lobby for "Deploy" check or just LOBBY
+                        setGameState('LOBBY');
+                    }}
+                    onBack={() => setGameState('MAIN_MENU')}
+                />
             )}
 
             {/* LOBBY */}

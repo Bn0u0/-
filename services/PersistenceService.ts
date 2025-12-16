@@ -1,7 +1,7 @@
 export interface GameSaveData {
     highScore: number;
     totalGamesPlayed: number;
-    // We can extend this later with unlocks
+    lootStash?: string[]; // Optional for backward compatibility
 }
 
 const STORAGE_KEY = 'SYNAPSE_SAVE_DATA_V1';
@@ -22,7 +22,7 @@ export class PersistenceService {
         } catch (e) {
             console.error('Failed to load save data', e);
         }
-        return { highScore: 0, totalGamesPlayed: 0 };
+        return { highScore: 0, totalGamesPlayed: 0, lootStash: [] };
     }
 
     public save(newData: Partial<GameSaveData>) {

@@ -1,6 +1,20 @@
-/* App.css - Neutral Cute Theme */
-
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600;700&display=swap');
+/* App.css - Candy Sci-Fi Theme */
+:root {
+  --bg-color: #1a1a2e;
+  /* Deep Space */
+  --primary-1: #FF00FF;
+  /* Neon Magenta */
+  --primary-2: #00FFFF;
+  /* Cyber Cyan */
+  --accent-1: #FFE66D;
+  /* Star Yellow */
+  --accent-2: #FF6B6B;
+  /* Danger Red */
+  --glass-bg: rgba(26, 26, 46, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --font-family: 'Noto Sans SC', sans-serif;
+  /* Keep Noto for TC support */
+}
 
 body {
   margin: 0;
@@ -8,6 +22,7 @@ body {
   overflow: hidden;
   font-family: var(--font-family);
   background-color: var(--bg-color);
+  color: white;
   user-select: none;
 }
 
@@ -82,15 +97,16 @@ body {
 }
 
 /* Cards */
+/* Cards */
 .glass-card {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  border-radius: 30px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  border-radius: 20px;
   padding: 2rem;
+  border: 1px solid var(--glass-border);
   box-shadow:
-    0 4px 6px rgba(0, 0, 0, 0.05),
-    0 10px 15px rgba(0, 0, 0, 0.1),
-    inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+    0 0 20px rgba(0, 255, 255, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
   width: 100%;
   box-sizing: border-box;
   animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -99,10 +115,15 @@ body {
 /* Typography */
 .title-text {
   font-family: var(--font-family);
-  font-size: 3.5rem;
-  font-weight: 700;
-  color: var(--primary-1);
-  text-shadow: 2px 2px 0px #FFF, 4px 4px 0px rgba(0, 0, 0, 0.1);
+  font-size: 4rem;
+  font-weight: 800;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  text-shadow:
+    0 0 5px var(--primary-1),
+    0 0 10px var(--primary-1),
+    0 0 20px var(--primary-1);
   margin-bottom: 0.5rem;
   text-align: center;
 }
@@ -135,9 +156,10 @@ body {
   position: relative;
   transition: all 0.2s ease;
 
-  /* Default Neutral Gradient */
-  background: linear-gradient(to bottom, var(--primary-1), var(--primary-2));
-  box-shadow: 0 6px 0 #b5c9c0, 0 12px 12px rgba(0, 0, 0, 0.15);
+  /* Default / Primary */
+  background: linear-gradient(135deg, var(--primary-1), #AA00AA);
+  box-shadow: 0 4px 0 #660066, 0 5px 10px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .bubble-btn:active {
@@ -146,8 +168,8 @@ body {
 }
 
 .bubble-btn.blue {
-  background: linear-gradient(to bottom, #a0c4ff, #74b9ff);
-  box-shadow: 0 6px 0 #5d6d7e, 0 12px 12px rgba(0, 0, 0, 0.15);
+  background: linear-gradient(135deg, var(--primary-2), #00AAAA);
+  box-shadow: 0 4px 0 #006666, 0 5px 10px rgba(0, 0, 0, 0.3);
 }
 
 .bubble-btn.blue:active {
@@ -190,7 +212,8 @@ body {
 }
 
 .cute-input:focus {
-  border-color: #FF69B4;
+  border-color: var(--primary-1);
+  box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
 }
 
 /* Stats Box */

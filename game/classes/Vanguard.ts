@@ -12,8 +12,8 @@ export class Vanguard extends Player {
     constructor(scene: Phaser.Scene, x: number, y: number, id: string, isLocal: boolean) {
         super(scene, x, y, id, isLocal);
 
-        // Visual distinction
-        this.drawHexagon(0xFFAA00); // Gold/Orange
+        // Visual distinction: Beetle
+        this.drawBeetle(0x3366FF); // Blue Beetle
 
         // Create Blade Aura visuals
         this.aura = scene.add.graphics();
@@ -23,6 +23,35 @@ export class Vanguard extends Player {
         // We will use manual distance check for the aura to avoid complex physics bodies attached to containers if possible, 
         // or just add a sensor. 
         // Let's use manual check for "Spin to Win" feel.
+    }
+
+    drawBeetle(color: number) {
+        const shape = (this as any).coreShape as Phaser.GameObjects.Graphics;
+        shape.clear();
+
+        shape.fillStyle(color, 1);
+        shape.lineStyle(2, 0x000000, 1);
+
+        // Body (Circle)
+        shape.fillCircle(0, 0, 18);
+        shape.strokeCircle(0, 0, 18);
+
+        // Head
+        shape.fillStyle(0x000000, 1);
+        shape.fillCircle(0, -14, 8);
+
+        // Line down middle
+        shape.beginPath();
+        shape.moveTo(0, -5);
+        shape.lineTo(0, 18);
+        shape.strokePath();
+
+        // Spots?
+        shape.fillStyle(0xFFFFFF, 0.8);
+        shape.fillCircle(-8, 5, 3);
+        shape.fillCircle(8, 5, 3);
+        shape.fillCircle(-5, 12, 2);
+        shape.fillCircle(5, 12, 2);
     }
 
     update() {

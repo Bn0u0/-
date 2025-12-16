@@ -7,6 +7,7 @@ export class ExtractionManager {
     private zones: Phaser.GameObjects.Group;
     public worldWidth: number;
     public worldHeight: number;
+    private terrainManager?: any; // Weak ref to avoid circular dep if importing concrete class
 
     constructor(scene: Phaser.Scene, worldWidth: number, worldHeight: number) {
         this.scene = scene;
@@ -15,14 +16,26 @@ export class ExtractionManager {
         this.zones = scene.add.group({ classType: ExtractionZone, runChildUpdate: false });
     }
 
+    public setTerrainManager(tm: any) {
+        this.terrainManager = tm;
+    }
+
     public spawnZones() {
         this.zones.clear(true, true);
 
-        // Corner 1: Top Right (far)
-        this.zones.add(new ExtractionZone(this.scene, this.worldWidth - 300, 300));
+        // Try to find 2 safe spots
+        for (let i = 0; i < 2; i++) {
+            let pos = { x: 0, y: 0 };
+            if (this.terrainManager) {
+                const tile = this.terrainManager.getRandomGroundTile();
+                if (tile) pos = tile;
+            } else {
+                // Fallback
+                pos = i === 0 ? { x: this.worldWidth - 300, y: 300 } : { x: 300, y: this.worldHeight - 300 };
+            }
 
-        // Corner 2: Bottom Left (far)
-        this.zones.add(new ExtractionZone(this.scene, 300, this.worldHeight - 300));
+            this.zones.add(new ExtractionZone(this.scene, pos.x, pos.y));
+        }
     }
 
     public checkExtraction(player: Player): boolean {

@@ -25,7 +25,7 @@ export class Player extends Phaser.GameObjects.Container {
     declare public setRotation: (radians?: number) => this;
     declare public setDepth: (value: number) => this;
 
-    private coreShape: Phaser.GameObjects.Graphics;
+    protected coreShape: Phaser.GameObjects.Graphics;
     private emitter: Phaser.GameObjects.Particles.ParticleEmitter;
     private shadow: Phaser.GameObjects.Ellipse; // 2.5D Anchor
 
@@ -40,6 +40,10 @@ export class Player extends Phaser.GameObjects.Container {
 
     // Inventory
     public lootBag: LootItemDef[] = [];
+
+    // Skills
+    public cooldowns: { [key: string]: number } = {};
+    public maxCooldowns: { [key: string]: number } = {};
 
     constructor(scene: Phaser.Scene, x: number, y: number, id: string, isLocal: boolean) {
         super(scene, x, y);
@@ -146,6 +150,13 @@ export class Player extends Phaser.GameObjects.Container {
         const body = this.body as Phaser.Physics.Arcade.Body;
         const dt = 16.6;
 
+        // Cooldown Management
+        for (const key in this.cooldowns) {
+            if (this.cooldowns[key] > 0) {
+                this.cooldowns[key] -= dt;
+            }
+        }
+
         // 2.5D Height Physics (Simple Gravity)
         if (this.z > 0 || this.zVelocity !== 0) {
             this.z += this.zVelocity;
@@ -233,4 +244,8 @@ export class Player extends Phaser.GameObjects.Container {
 
     // Virtual metods for subclasses
     public updateCombat(enemies: Phaser.GameObjects.Group, projectiles: Phaser.GameObjects.Group) { }
+
+    // Generic Skill Hooks
+    public triggerSkill1() { }
+    public triggerSkill2() { }
 }

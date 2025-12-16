@@ -18,6 +18,7 @@ export class MainScene extends Phaser.Scene {
     declare public physics: Phaser.Physics.Arcade.ArcadePhysics;
     declare public input: Phaser.Input.InputPlugin;
     declare public scene: Phaser.Scenes.ScenePlugin;
+    declare public scale: Phaser.Scale.ScaleManager;
 
     // Entities
     private commander: Player | null = null;
@@ -32,6 +33,7 @@ export class MainScene extends Phaser.Scene {
     private bgGrid: Phaser.GameObjects.Grid | null = null;
 
     // Game Stats
+    private isGameActive: boolean = false; // Flow Control
     private isPaused: boolean = false;
     private level: number = 1;
     private xp: number = 0;
@@ -84,56 +86,80 @@ export class MainScene extends Phaser.Scene {
         if (this.myUnit) {
             this.cameras.main.startFollow(this.myUnit, true, 0.08, 0.08);
         }
-        this.cameras.main.setZoom(0.85);
+
+        // Initial Zoom based on screen size
+        this.updateCameraZoom();
 
         // 6. Network Listeners
         EventBus.on('NETWORK_PACKET', this.handleNetworkPacket, this);
         EventBus.on('APPLY_UPGRADE', this.applyUpgrade, this);
+        EventBus.on('START_MATCH', this.handleStartMatch, this);
+
+        // Listen to Resize
+        this.scale.on('resize', this.handleResize, this);
 
         // 7. Cleanup
         this.events.on('shutdown', () => {
             this.cleanup();
         });
 
-        // 8. Start Game (Host only initiates wave)
+        // 8. Wait for START_MATCH event to begin game...
         this.emitStatsUpdate();
+    }
+
+    handleResize(gameSize: Phaser.Structs.Size, baseSize: Phaser.Structs.Size, displaySize: Phaser.Structs.Size, previousWidth: number, previousHeight: number) {
+        this.updateCameraZoom();
+    }
+
+    updateCameraZoom() {
+        const width = this.scale.width;
+        let zoom = 0.85;
+        if (width < 600) {
+            zoom = 0.55;
+        } else if (width < 1024) {
+            zoom = 0.70;
+        }
+        this.cameras.main.zoomTo(zoom, 1000, 'Power2');
+    }
+
+    handleStartMatch() {
+        console.log('[MainScene] Match Started!');
+        this.isGameActive = true;
+
+        // Host initiates wave
         if (network.isHost) {
             this.startWave(1);
         }
     }
 
     setupPlayers() {
-        // Create both units
-        // Commander starts at 0,0
         this.commander = new Player(this, 0, 0, 'COMMANDER', network.isHost);
-        // Drone starts offset
         this.drone = new Player(this, 200, 0, 'DRONE', !network.isHost);
 
         this.commander.setDepth(100);
         this.drone.setDepth(100);
 
-        // Assign ownership
         if (network.isHost) {
             this.myUnit = this.commander;
             this.otherUnit = this.drone;
         } else {
             this.myUnit = this.drone;
             this.otherUnit = this.commander;
-
-            // Client units should not be physics-driven by local engine, 
-            // but we need physics bodies for rendering/position setting.
-            // We'll manually set their positions from updates.
         }
     }
 
     cleanup() {
         EventBus.off('NETWORK_PACKET', this.handleNetworkPacket, this);
         EventBus.off('APPLY_UPGRADE', this.applyUpgrade, this);
+        EventBus.off('START_MATCH', this.handleStartMatch, this);
+        this.scale.off('resize', this.handleResize, this);
+
         if (this.enemyGroup) this.enemyGroup.clear(true, true);
         if (this.spawnTimer) this.spawnTimer.remove(false);
     }
 
     resetGame() {
+        this.isGameActive = false; // Start in Lobby mode
         this.level = 1;
         this.xp = 0;
         this.score = 0;
@@ -145,18 +171,18 @@ export class MainScene extends Phaser.Scene {
 
     update(time: number, delta: number) {
         this.updateBackground(time);
-        if (this.isPaused) return;
+
+        // LOBBY MODE / PAUSED -> Skip Game Logic
+        if (!this.isGameActive || this.isPaused) {
+            return;
+        }
 
         // 1. Process Local Input -> Move My Unit
         this.processLocalInput();
 
         // 2. Process Remote Unit Movement
         if (network.isHost) {
-            // Host: Move Drone based on received input vector
             this.processDroneMovementAsHost();
-        } else {
-            // Client: Interpolate units based on received state (Optional - for now Rigid SNAP)
-            // Actually, we just set position in handleNetworkPacket for simplicity in MVP
         }
 
         // 3. Host Logic: AI / Collisions
@@ -166,18 +192,14 @@ export class MainScene extends Phaser.Scene {
             });
             this.checkCollisions();
             this.checkWaveStatus();
-
-            // Broadcast State
             this.broadcastGameState(time);
         } else {
-            // Client Logic: Send Input
             this.sendClientInput(time);
         }
 
         // 4. Render Visuals (Tether)
         this.renderTethers(time);
 
-        // Updates
         this.commander?.update();
         this.drone?.update();
     }
@@ -194,17 +216,13 @@ export class MainScene extends Phaser.Scene {
             const dx = worldPoint.x - this.myUnit.x;
             const dy = worldPoint.y - this.myUnit.y;
             const angle = Math.atan2(dy, dx);
-
-            // Calculate "Joystick" vector (normalized)
             const inputVecX = Math.cos(angle);
             const inputVecY = Math.sin(angle);
 
-            // Apply locally
-            const accel = PHYSICS.acceleration * this.statsModifiers.playerSpeed; // Simplified speed for both
+            const accel = PHYSICS.acceleration * this.statsModifiers.playerSpeed;
             body.setDrag(PHYSICS.drag);
             body.setAcceleration(inputVecX * accel, inputVecY * accel);
 
-            // Rotate
             const targetRotation = angle + Math.PI / 2;
             const nextRotation = Phaser.Math.Angle.RotateTo(this.myUnit.rotation, targetRotation, PHYSICS.rotationLerp);
             this.myUnit.setRotation(nextRotation);
@@ -214,7 +232,6 @@ export class MainScene extends Phaser.Scene {
     }
 
     processDroneMovementAsHost() {
-        // Host controls Drone using remoteInputVector
         if (!this.drone) return;
         const body = this.drone.body as Phaser.Physics.Arcade.Body;
 
@@ -225,7 +242,6 @@ export class MainScene extends Phaser.Scene {
                 this.remoteInputVector.x * accel,
                 this.remoteInputVector.y * accel
             );
-
             const angle = Math.atan2(this.remoteInputVector.y, this.remoteInputVector.x);
             const targetRotation = angle + Math.PI / 2;
             const nextRotation = Phaser.Math.Angle.RotateTo(this.drone.rotation, targetRotation, PHYSICS.rotationLerp);
@@ -238,7 +254,6 @@ export class MainScene extends Phaser.Scene {
     // --- NETWORKING ---
 
     sendClientInput(time: number) {
-        // Rate limit 30hz
         if (time - this.lastSentTime < 33) return;
 
         const pointer = this.input.activePointer;
@@ -262,31 +277,27 @@ export class MainScene extends Phaser.Scene {
     }
 
     broadcastGameState(time: number) {
-        if (time - this.lastSentTime < 45) return; // ~22hz server tick
-
-        const enemiesData = this.enemyGroup?.getChildren().map(e => {
-            const enemy = e as Enemy;
-            return { x: Math.round(enemy.x), y: Math.round(enemy.y), type: 'BASIC' };
-        }) || [];
+        if (time - this.lastSentTime < 45) return;
 
         network.broadcast({
             type: 'STATE',
             payload: {
                 c: { x: Math.round(this.commander!.x), y: Math.round(this.commander!.y), r: this.commander!.rotation },
                 d: { x: Math.round(this.drone!.x), y: Math.round(this.drone!.y), r: this.drone!.rotation },
-                s: { hp: this.hp, sc: this.score, w: this.wave, l: this.level },
-                // e: enemiesData // Optimization: Don't sync enemies for MVP, Client just sees tether kills
+                s: { hp: this.hp, sc: this.score, w: this.wave, l: this.level }
             }
         });
         this.lastSentTime = time;
     }
 
     handleNetworkPacket(data: any) {
-        if (data.type === 'INPUT' && network.isHost) {
+        if (data.type === 'START_MATCH') {
+            EventBus.emit('START_MATCH');
+        }
+        else if (data.type === 'INPUT' && network.isHost) {
             this.remoteInputVector = data.payload;
         }
         else if (data.type === 'STATE' && !network.isHost) {
-            // SNAP positions
             const s = data.payload;
             if (this.commander) {
                 this.commander.setPosition(s.c.x, s.c.y);
@@ -296,8 +307,6 @@ export class MainScene extends Phaser.Scene {
                 this.drone.setPosition(s.d.x, s.d.y);
                 this.drone.setRotation(s.d.r);
             }
-
-            // Sync Stats
             if (s.s) {
                 this.hp = s.s.hp;
                 this.score = s.s.sc;
@@ -305,6 +314,9 @@ export class MainScene extends Phaser.Scene {
                 this.level = s.s.l;
                 this.emitStatsUpdate();
             }
+        }
+        else if (data.type === 'GAME_OVER') {
+            this.gameOver();
         }
     }
 
@@ -359,7 +371,6 @@ export class MainScene extends Phaser.Scene {
 
             enemies.forEach(enemy => {
                 if (enemy.isDead) return;
-                // Simple Circle Approx
                 if (Phaser.Geom.Intersects.LineToCircle(line, new Phaser.Geom.Circle(enemy.x, enemy.y, 15))) {
                     enemy.kill();
                     this.score += 10;
@@ -386,10 +397,16 @@ export class MainScene extends Phaser.Scene {
         if (this.hp <= 0) {
             this.hp = 0;
             network.broadcast({ type: 'GAME_OVER', payload: { score: this.score } });
-            EventBus.emit('GAME_OVER', { score: this.score, wave: this.wave, level: this.level });
-            this.isPaused = true;
+            this.gameOver();
         }
         this.emitStatsUpdate();
+    }
+
+    gameOver() {
+        EventBus.emit('GAME_OVER', { score: this.score, wave: this.wave, level: this.level });
+        this.isPaused = true;
+        this.isGameActive = false;
+        this.physics.pause();
     }
 
     checkWaveStatus() {
@@ -404,13 +421,12 @@ export class MainScene extends Phaser.Scene {
         this.level++;
         this.xp = 0;
         this.xpToNextLevel = Math.floor(this.xpToNextLevel * 1.5);
-        this.isPaused = true; // Pauses Host Physics
+        this.isPaused = true;
         EventBus.emit('LEVEL_UP', this.level);
-        // Note: upgrades are applied via EventBus listener 'APPLY_UPGRADE' -> resumeGame
     }
 
     applyUpgrade(type: UpgradeType) {
-        // ... (Similar logic, omitted for brevity, adding simple handler)
+        // ... Logic
         this.resumeGame();
     }
 
@@ -421,8 +437,8 @@ export class MainScene extends Phaser.Scene {
     updateBackground(time: number) {
         if (this.bgGrid) {
             this.bgGrid.setAlpha(0.15 + Math.sin(time / 3000) * 0.05);
-            this.bgGrid.tilePositionX = this.cameras.main.scrollX * 0.5;
-            this.bgGrid.tilePositionY = this.cameras.main.scrollY * 0.5;
+            (this.bgGrid as any).tilePositionX = this.cameras.main.scrollX * 0.5;
+            (this.bgGrid as any).tilePositionY = this.cameras.main.scrollY * 0.5;
         }
     }
 

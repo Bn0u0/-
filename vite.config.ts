@@ -6,5 +6,16 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     hmr: true
+  },
+  build: {
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          phaser: ['phaser'],
+          vendor: ['react', 'react-dom', 'peerjs']
+        }
+      }
+    }
   }
 });

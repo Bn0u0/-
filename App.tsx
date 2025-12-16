@@ -25,11 +25,13 @@ const CornerBrackets = ({ color = "text-cyan-500" }) => (
     </>
 );
 
-const HexButton = ({ onClick, children, primary = true }: { onClick: () => void, children?: React.ReactNode, primary?: boolean }) => (
+const HexButton = ({ onClick, children, primary = true, disabled = false }: { onClick: () => void, children?: React.ReactNode, primary?: boolean, disabled?: boolean }) => (
     <button
         onClick={onClick}
+        disabled={disabled}
         className={`
       relative group px-8 py-4 w-full font-['Rajdhani'] font-bold text-xl tracking-[0.2em] uppercase transition-all duration-200
+      ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}
       ${primary
                 ? 'text-black hover:text-white'
                 : 'text-cyan-400 hover:text-white border border-cyan-900/50 hover:border-cyan-400/50 bg-black/40'}
@@ -37,7 +39,7 @@ const HexButton = ({ onClick, children, primary = true }: { onClick: () => void,
         style={{ clipPath: 'polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px)' }}
     >
         {/* Background Fill for Primary */}
-        {primary && (
+        {primary && !disabled && (
             <div className="absolute inset-0 bg-cyan-400 group-hover:bg-cyan-500 transition-colors -z-10"></div>
         )}
 
@@ -101,13 +103,6 @@ const App: React.FC = () => {
             }
         };
 
-        EventBus.on('LEVEL_UP', onLevelUp);
-        EventBus.on('GAME_OVER', onGameOver);
-
-        return () => {
-            EventBus.off('LEVEL_UP', onLevelUp);
-            EventBus.off('GAME_OVER', onGameOver);
-        };
         const onNETWORK_CONNECTED = () => {
             setConnectionStatus('CONNECTED');
         };
@@ -117,22 +112,32 @@ const App: React.FC = () => {
             setGameState('GAMEOVER'); // Or back to lobby
         };
 
+        const onSTART_MATCH = () => {
+            setGameState('PLAYING');
+        };
+
         EventBus.on('LEVEL_UP', onLevelUp);
         EventBus.on('GAME_OVER', onGameOver);
         EventBus.on('NETWORK_CONNECTED', onNETWORK_CONNECTED);
         EventBus.on('NETWORK_DISCONNECTED', onNETWORK_DISCONNECTED);
+        EventBus.on('START_MATCH', onSTART_MATCH);
 
         return () => {
             EventBus.off('LEVEL_UP', onLevelUp);
             EventBus.off('GAME_OVER', onGameOver);
             EventBus.off('NETWORK_CONNECTED', onNETWORK_CONNECTED);
             EventBus.off('NETWORK_DISCONNECTED', onNETWORK_DISCONNECTED);
+            EventBus.off('START_MATCH', onSTART_MATCH);
         };
     }, [highScore]);
 
-    const handleStart = () => {
-        setGameState('PLAYING');
-        EventBus.emit('START_GAME');
+    const handleStartGame = () => {
+        // Only Host can start
+        if (isHost && connectionStatus === 'CONNECTED') {
+            network.broadcast({ type: 'START_MATCH' });
+            EventBus.emit('START_MATCH'); // Local Trigger
+            setGameState('PLAYING');
+        }
     };
 
     const handleSelectUpgrade = (upgrade: UpgradeOption) => {
@@ -145,7 +150,6 @@ const App: React.FC = () => {
         setIsHost(true);
         const id = await network.initialize();
         setHostId(id);
-        // Waiting for peer to join... status remains CONNECTING until NETWORK_CONNECTED event
     };
 
     const handleJoinGame = async () => {
@@ -200,23 +204,23 @@ const App: React.FC = () => {
 
             {/* LOBBY / MAIN MENU */}
             {gameState === 'LOBBY' && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="relative w-full max-w-lg p-10 flex flex-col items-center">
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="relative w-full max-w-lg p-6 md:p-10 flex flex-col items-center my-auto">
                         {/* Decorative Borders */}
                         <CornerBrackets />
 
                         {/* Title Section */}
-                        <div className="mb-12 text-center relative">
+                        <div className="mb-8 md:mb-12 text-center relative">
                             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-cyan-500/20 blur-3xl opacity-20 pointer-events-none"></div>
                             <h5 className="text-cyan-500 tracking-[0.8em] text-xs font-bold mb-2 uppercase">Geometric Warfare Protocol</h5>
-                            <h1 className="text-7xl md:text-8xl font-black text-white italic tracking-tighter drop-shadow-[0_0_10px_rgba(0,240,255,0.5)]">
+                            <h1 className="text-6xl md:text-8xl font-black text-white italic tracking-tighter drop-shadow-[0_0_10px_rgba(0,240,255,0.5)]">
                                 SYNAPSE
                             </h1>
                             <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-500 to-transparent mt-4"></div>
                         </div>
 
                         {/* Stats Grid */}
-                        <div className="grid grid-cols-2 gap-4 w-full mb-10">
+                        <div className="grid grid-cols-2 gap-4 w-full mb-8 md:mb-10">
                             <div className="bg-black/40 border border-gray-800 p-4 relative group hover:border-cyan-500/50 transition-colors">
                                 <div className="text-gray-500 text-[10px] uppercase tracking-widest mb-1">High Score</div>
                                 <div className="font-['Share_Tech_Mono'] text-2xl text-cyan-300">{highScore.toLocaleString()}</div>
@@ -229,7 +233,6 @@ const App: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Actions */}
                         {/* P2P Actions */}
                         <div className="w-full space-y-6">
 
@@ -280,9 +283,16 @@ const App: React.FC = () => {
                                         <div className="text-emerald-400 tracking-widest text-sm">NEURAL LINK ACTIVE</div>
                                         <div className="text-[10px] text-emerald-400/60 mt-1">Ready to sync</div>
                                     </div>
-                                    <HexButton onClick={handleStart} primary={true}>
-                                        EXECUTE PROTOCOL
-                                    </HexButton>
+
+                                    {isHost ? (
+                                        <HexButton onClick={handleStartGame} primary={true}>
+                                            EXECUTE PROTOCOL
+                                        </HexButton>
+                                    ) : (
+                                        <div className="text-center p-4 border border-cyan-500/20">
+                                            <div className="text-cyan-400 animate-pulse text-sm tracking-widest">WAITING FOR HOST...</div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -321,14 +331,13 @@ const App: React.FC = () => {
                         </div>
 
                         <div className="space-y-3">
-                            <HexButton onClick={() => { setGameState('PLAYING'); EventBus.emit('START_GAME'); }} primary={false}>
-                                <span className="text-white">Reboot System</span>
-                            </HexButton>
+                            {/* Only Host "Reboot" logic is tricky in P2P without re-handshaking. 
+                          For MVP, return to Lobby is safer. */}
                             <button
-                                onClick={() => setGameState('LOBBY')}
+                                onClick={() => { setGameState('LOBBY'); setConnectionStatus('IDLE'); }} // Full reset?
                                 className="w-full text-center text-xs text-red-500/50 hover:text-red-400 uppercase tracking-widest mt-4"
                             >
-                                Return to Lobby
+                                Return to Lobby (Disconnect)
                             </button>
                         </div>
                     </div>

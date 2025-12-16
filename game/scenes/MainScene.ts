@@ -8,6 +8,7 @@ import { UpgradeType } from '../../types';
 import { network } from '../../services/NetworkService';
 
 type WaveState = 'PREPARING' | 'SPAWNING' | 'COMBAT' | 'COMPLETE';
+type GameMode = 'SINGLE' | 'MULTI';
 
 export class MainScene extends Phaser.Scene {
     declare public game: Phaser.Game;
@@ -24,7 +25,6 @@ export class MainScene extends Phaser.Scene {
     private commander: Player | null = null;
     private drone: Player | null = null;
 
-    // Pointers to local/remote for easy input logic
     private myUnit: Player | null = null;
     private otherUnit: Player | null = null;
 
@@ -33,7 +33,8 @@ export class MainScene extends Phaser.Scene {
     private bgGrid: Phaser.GameObjects.Grid | null = null;
 
     // Game Stats
-    private isGameActive: boolean = false; // Flow Control
+    private isGameActive: boolean = false;
+    private currentMode: GameMode = 'SINGLE';
     private isPaused: boolean = false;
     private level: number = 1;
     private xp: number = 0;
@@ -42,14 +43,14 @@ export class MainScene extends Phaser.Scene {
     private hp: number = 100;
     private maxHp: number = 100;
 
-    // Wave Manager (Host Only)
+    // Wave Manager
     private wave: number = 1;
     private waveState: WaveState = 'PREPARING';
     private enemiesToSpawn: number = 0;
     private spawnTimer: Phaser.Time.TimerEvent | null = null;
     private nextWaveTimer: Phaser.Time.TimerEvent | null = null;
 
-    // Modifiers (Skills)
+    // Modifiers 
     private statsModifiers = {
         tetherLength: 1.0,
         droneSpeed: 1.0,
@@ -65,10 +66,8 @@ export class MainScene extends Phaser.Scene {
     }
 
     create() {
-        // 1. Reset Stats on Restart
         this.resetGame();
 
-        // 2. Setup World
         this.cameras.main.setBackgroundColor(COLORS.bg);
         this.bgGrid = this.add.grid(0, 0, 4000, 4000, 100, 100, COLORS.bg, 0, COLORS.grid, 0.2);
         this.bgGrid.setDepth(-10);
@@ -76,76 +75,75 @@ export class MainScene extends Phaser.Scene {
         this.graphics = this.add.graphics();
         this.graphics.setDepth(50);
 
-        // 3. Enemy Group
         this.enemyGroup = this.add.group({ classType: Enemy, runChildUpdate: true });
 
-        // 4. Setup Players based on Role
-        this.setupPlayers();
-
-        // 5. Camera Follow Local
-        if (this.myUnit) {
-            this.cameras.main.startFollow(this.myUnit, true, 0.08, 0.08);
-        }
-
-        // Initial Zoom based on screen size
-        this.updateCameraZoom();
-
-        // 6. Network Listeners
+        // Listen for Mode Start
+        EventBus.on('START_MATCH', this.handleStartMatch, this);
         EventBus.on('NETWORK_PACKET', this.handleNetworkPacket, this);
         EventBus.on('APPLY_UPGRADE', this.applyUpgrade, this);
-        EventBus.on('START_MATCH', this.handleStartMatch, this);
 
-        // Listen to Resize
         this.scale.on('resize', this.handleResize, this);
+        this.events.on('shutdown', () => this.cleanup());
 
-        // 7. Cleanup
-        this.events.on('shutdown', () => {
-            this.cleanup();
-        });
-
-        // 8. Wait for START_MATCH event to begin game...
+        // Initial setup for camera mostly
+        this.updateCameraZoom();
         this.emitStatsUpdate();
     }
 
-    handleResize(gameSize: Phaser.Structs.Size, baseSize: Phaser.Structs.Size, displaySize: Phaser.Structs.Size, previousWidth: number, previousHeight: number) {
+    handleResize() {
         this.updateCameraZoom();
     }
 
     updateCameraZoom() {
         const width = this.scale.width;
         let zoom = 0.85;
-        if (width < 600) {
-            zoom = 0.55;
-        } else if (width < 1024) {
-            zoom = 0.70;
-        }
+        if (width < 600) zoom = 0.55;
+        else if (width < 1024) zoom = 0.70;
         this.cameras.main.zoomTo(zoom, 1000, 'Power2');
     }
 
-    handleStartMatch() {
-        console.log('[MainScene] Match Started!');
+    handleStartMatch(mode: GameMode) {
+        // Defaults to MULTI if coming from direct network event without payload, 
+        // but App.tsx sends payload now.
+        const actualMode = mode || (network.isHost ? 'MULTI' : 'MULTI');
+        this.currentMode = actualMode;
         this.isGameActive = true;
+        console.log(`[MainScene] Match Started! Mode: ${this.currentMode}`);
 
-        // Host initiates wave
-        if (network.isHost) {
+        this.setupPlayers();
+
+        // Single Player: Start immediate
+        // Multi Host: Start immediate
+        // Multi Client: Wait for packets
+        if (this.currentMode === 'SINGLE' || network.isHost) {
             this.startWave(1);
+        }
+
+        if (this.myUnit) {
+            this.cameras.main.startFollow(this.myUnit, true, 0.08, 0.08);
         }
     }
 
     setupPlayers() {
-        this.commander = new Player(this, 0, 0, 'COMMANDER', network.isHost);
-        this.drone = new Player(this, 200, 0, 'DRONE', !network.isHost);
+        // Re-create Players
+        if (this.commander) this.commander.destroy();
+        if (this.drone) this.drone.destroy();
 
-        this.commander.setDepth(100);
-        this.drone.setDepth(100);
-
-        if (network.isHost) {
+        if (this.currentMode === 'SINGLE') {
+            this.commander = new Player(this, 0, 0, 'COMMANDER', true);
+            this.drone = new Player(this, 200, 0, 'DRONE', false);
             this.myUnit = this.commander;
             this.otherUnit = this.drone;
         } else {
-            this.myUnit = this.drone;
-            this.otherUnit = this.commander;
+            const isHost = network.isHost;
+            this.commander = new Player(this, 0, 0, 'COMMANDER', isHost);
+            this.drone = new Player(this, 200, 0, 'DRONE', !isHost);
+            this.myUnit = isHost ? this.commander : this.drone;
+            this.otherUnit = isHost ? this.drone : this.commander;
         }
+
+        this.commander.setDepth(100);
+        this.drone.setDepth(100);
     }
 
     cleanup() {
@@ -153,13 +151,13 @@ export class MainScene extends Phaser.Scene {
         EventBus.off('APPLY_UPGRADE', this.applyUpgrade, this);
         EventBus.off('START_MATCH', this.handleStartMatch, this);
         this.scale.off('resize', this.handleResize, this);
-
-        if (this.enemyGroup) this.enemyGroup.clear(true, true);
         if (this.spawnTimer) this.spawnTimer.remove(false);
+        if (this.nextWaveTimer) this.nextWaveTimer.remove(false);
+        if (this.enemyGroup) this.enemyGroup.clear(true, true);
     }
 
     resetGame() {
-        this.isGameActive = false; // Start in Lobby mode
+        this.isGameActive = false;
         this.level = 1;
         this.xp = 0;
         this.score = 0;
@@ -167,44 +165,63 @@ export class MainScene extends Phaser.Scene {
         this.wave = 1;
         this.isPaused = false;
         this.physics.resume();
+        if (this.enemyGroup) this.enemyGroup.clear(true, true);
     }
 
     update(time: number, delta: number) {
         this.updateBackground(time);
 
-        // LOBBY MODE / PAUSED -> Skip Game Logic
-        if (!this.isGameActive || this.isPaused) {
-            return;
-        }
+        if (!this.isGameActive || this.isPaused) return;
 
-        // 1. Process Local Input -> Move My Unit
+        // 1. Inputs
         this.processLocalInput();
 
-        // 2. Process Remote Unit Movement
-        if (network.isHost) {
+        // 2. Second Unit Movement
+        if (this.currentMode === 'SINGLE') {
+            this.updateDroneAI();
+        } else if (network.isHost) {
             this.processDroneMovementAsHost();
         }
 
-        // 3. Host Logic: AI / Collisions
-        if (network.isHost) {
+        // 3. Game Logic (Host/Single Authoritative)
+        if (this.currentMode === 'SINGLE' || network.isHost) {
             this.enemyGroup?.getChildren().forEach((child) => {
                 (child as Enemy).seekPlayer([this.commander!, this.drone!], 100);
             });
             this.checkCollisions();
             this.checkWaveStatus();
-            this.broadcastGameState(time);
+
+            if (this.currentMode === 'MULTI') {
+                this.broadcastGameState(time);
+            }
         } else {
             this.sendClientInput(time);
         }
 
-        // 4. Render Visuals (Tether)
+        // 4. Visuals
         this.renderTethers(time);
-
         this.commander?.update();
         this.drone?.update();
     }
 
-    // --- INPUT & MOVEMENT ---
+    updateDroneAI() {
+        if (!this.drone || !this.commander) return;
+        const orbitSpeed = 0.02;
+        const desiredDist = 180;
+
+        // Simple Orbit Logic
+        const angle = Phaser.Math.Angle.Between(this.commander.x, this.commander.y, this.drone.x, this.drone.y);
+        const targetAngle = angle + orbitSpeed;
+        const targetX = this.commander.x + Math.cos(targetAngle) * desiredDist;
+        const targetY = this.commander.y + Math.sin(targetAngle) * desiredDist;
+
+        const dx = targetX - this.drone.x;
+        const dy = targetY - this.drone.y;
+
+        const body = this.drone.body as Phaser.Physics.Arcade.Body;
+        body.setVelocity(dx * 4, dy * 4);
+        this.drone.rotation += 0.05;
+    }
 
     processLocalInput() {
         if (!this.myUnit) return;
@@ -223,6 +240,7 @@ export class MainScene extends Phaser.Scene {
             body.setDrag(PHYSICS.drag);
             body.setAcceleration(inputVecX * accel, inputVecY * accel);
 
+            // Rotate towards movement
             const targetRotation = angle + Math.PI / 2;
             const nextRotation = Phaser.Math.Angle.RotateTo(this.myUnit.rotation, targetRotation, PHYSICS.rotationLerp);
             this.myUnit.setRotation(nextRotation);
@@ -238,27 +256,20 @@ export class MainScene extends Phaser.Scene {
         if (this.remoteInputVector.x !== 0 || this.remoteInputVector.y !== 0) {
             const accel = PHYSICS.acceleration * this.statsModifiers.droneSpeed;
             body.setDrag(PHYSICS.drag);
-            body.setAcceleration(
-                this.remoteInputVector.x * accel,
-                this.remoteInputVector.y * accel
-            );
+            body.setAcceleration(this.remoteInputVector.x * accel, this.remoteInputVector.y * accel);
+
             const angle = Math.atan2(this.remoteInputVector.y, this.remoteInputVector.x);
             const targetRotation = angle + Math.PI / 2;
-            const nextRotation = Phaser.Math.Angle.RotateTo(this.drone.rotation, targetRotation, PHYSICS.rotationLerp);
-            this.drone.setRotation(nextRotation);
+            this.drone.setRotation(Phaser.Math.Angle.RotateTo(this.drone.rotation, targetRotation, PHYSICS.rotationLerp));
         } else {
             body.setAcceleration(0, 0);
         }
     }
 
-    // --- NETWORKING ---
-
     sendClientInput(time: number) {
         if (time - this.lastSentTime < 33) return;
-
         const pointer = this.input.activePointer;
-        let vecX = 0;
-        let vecY = 0;
+        let vecX = 0, vecY = 0;
 
         if (pointer.isDown && this.myUnit) {
             const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
@@ -268,17 +279,12 @@ export class MainScene extends Phaser.Scene {
             vecX = Math.cos(angle);
             vecY = Math.sin(angle);
         }
-
-        network.broadcast({
-            type: 'INPUT',
-            payload: { x: vecX, y: vecY }
-        });
+        network.broadcast({ type: 'INPUT', payload: { x: vecX, y: vecY } });
         this.lastSentTime = time;
     }
 
     broadcastGameState(time: number) {
         if (time - this.lastSentTime < 45) return;
-
         network.broadcast({
             type: 'STATE',
             payload: {
@@ -292,21 +298,15 @@ export class MainScene extends Phaser.Scene {
 
     handleNetworkPacket(data: any) {
         if (data.type === 'START_MATCH') {
-            EventBus.emit('START_MATCH');
+            EventBus.emit('START_MATCH', 'MULTI');
         }
         else if (data.type === 'INPUT' && network.isHost) {
             this.remoteInputVector = data.payload;
         }
         else if (data.type === 'STATE' && !network.isHost) {
             const s = data.payload;
-            if (this.commander) {
-                this.commander.setPosition(s.c.x, s.c.y);
-                this.commander.setRotation(s.c.r);
-            }
-            if (this.drone) {
-                this.drone.setPosition(s.d.x, s.d.y);
-                this.drone.setRotation(s.d.r);
-            }
+            if (this.commander) { this.commander.setPosition(s.c.x, s.c.y); this.commander.setRotation(s.c.r); }
+            if (this.drone) { this.drone.setPosition(s.d.x, s.d.y); this.drone.setRotation(s.d.r); }
             if (s.s) {
                 this.hp = s.s.hp;
                 this.score = s.s.sc;
@@ -319,8 +319,6 @@ export class MainScene extends Phaser.Scene {
             this.gameOver();
         }
     }
-
-    // --- GAMEPLAY HOST LOGIC ---
 
     startWave(waveNumber: number) {
         this.wave = waveNumber;
@@ -361,7 +359,7 @@ export class MainScene extends Phaser.Scene {
     checkCollisions() {
         if (!this.commander || !this.drone) return;
 
-        // 1. Tether Kill
+        // Tether Kill
         const dist = Phaser.Math.Distance.Between(this.commander.x, this.commander.y, this.drone.x, this.drone.y);
         const maxLen = PHYSICS.tetherDistance * 2.2 * this.statsModifiers.tetherLength;
 
@@ -381,7 +379,7 @@ export class MainScene extends Phaser.Scene {
             });
         }
 
-        // 2. Player Damage
+        // Player Damage
         const enemies = this.enemyGroup?.getChildren() as Enemy[];
         enemies.forEach(enemy => {
             if (enemy.isDead) return;
@@ -396,7 +394,9 @@ export class MainScene extends Phaser.Scene {
         this.hp -= amt;
         if (this.hp <= 0) {
             this.hp = 0;
-            network.broadcast({ type: 'GAME_OVER', payload: { score: this.score } });
+            if (this.currentMode === 'MULTI' && network.isHost) {
+                network.broadcast({ type: 'GAME_OVER', payload: { score: this.score } });
+            }
             this.gameOver();
         }
         this.emitStatsUpdate();
@@ -426,11 +426,6 @@ export class MainScene extends Phaser.Scene {
     }
 
     applyUpgrade(type: UpgradeType) {
-        // ... Logic
-        this.resumeGame();
-    }
-
-    resumeGame() {
         this.isPaused = false;
     }
 
@@ -458,14 +453,13 @@ export class MainScene extends Phaser.Scene {
     renderTethers(time: number) {
         if (!this.graphics || !this.commander || !this.drone) return;
         this.graphics.clear();
-
         const p1 = this.commander;
         const p2 = this.drone;
         const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
         const maxLen = PHYSICS.tetherDistance * 2.2 * this.statsModifiers.tetherLength;
 
         if (dist < maxLen) {
-            this.graphics.lineStyle(4, 0x00ffff, 0.6);
+            this.graphics.lineStyle(4, COLORS.primary, 0.6);
             this.graphics.strokeLineShape(new Phaser.Geom.Line(p1.x, p1.y, p2.x, p2.y));
         }
     }

@@ -1,19 +1,21 @@
+// Cute Theme Colors
 export const COLORS = {
-  bg: 0x050508, // Darker deep space
-  grid: 0x1a1a40,
-  primary: 0x00F0FF, // Cyan
-  secondary: 0xFF0055, // Magenta
+  bg: 0xFFF0F5, // Lavender Blush / Light Pink
+  primary: 0xFF69B4, // Hot Pink
+  secondary: 0x87CEEB, // Sky Blue
   accent: 0xFFD700, // Gold
-  tether: 0xFFFFFF, 
-  danger: 0xFF0000, // Red for weak link
-  ui_overlay: 'rgba(0, 240, 255, 0.05)',
+  white: 0xFFFFFF,
+
+  // Grid/UI
+  grid: 0xE6E6FA, // Lavender
+  text: 0x555555
 };
 
 export const PHYSICS = {
   drag: 1200, // High drag for precise stopping
   acceleration: 2200, // High acceleration for snappy response
   maxVelocity: 550,
-  tetherDistance: 300, 
+  tetherDistance: 300,
   rotationLerp: 0.15, // Smooth turning speed
 };
 

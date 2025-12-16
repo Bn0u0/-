@@ -1,33 +1,59 @@
-/* App.css - The Cute Theme */
+/* App.css - Neutral Cute Theme */
 
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Varela+Round&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600;700&display=swap');
 
 body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-family: 'Varela Round', sans-serif;
-  background-color: #FFF0F5; /* Lavender Blush */
+  font-family: var(--font-family);
+  background-color: var(--bg-color);
   user-select: none;
 }
 
 /* Animations */
 @keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
 }
 
 @keyframes bounceIn {
-  0% { transform: scale(0.1); opacity: 0; }
-  60% { transform: scale(1.2); opacity: 1; }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(0.1);
+    opacity: 0;
+  }
+
+  60% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 @keyframes pulse-glow {
-  0% { box-shadow: 0 0 0 0 rgba(255, 105, 180, 0.4); }
-  70% { box-shadow: 0 0 0 10px rgba(255, 105, 180, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 105, 180, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 105, 180, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 105, 180, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 105, 180, 0);
+  }
 }
 
 /* UI Containers */
@@ -37,7 +63,8 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none; /* Let clicks pass through to game usually */
+  pointer-events: none;
+  /* Let clicks pass through to game usually */
   z-index: 10;
 }
 
@@ -60,7 +87,7 @@ body {
   backdrop-filter: blur(12px);
   border-radius: 30px;
   padding: 2rem;
-  box-shadow: 
+  box-shadow:
     0 4px 6px rgba(0, 0, 0, 0.05),
     0 10px 15px rgba(0, 0, 0, 0.1),
     inset 0 0 0 2px rgba(255, 255, 255, 0.5);
@@ -71,22 +98,23 @@ body {
 
 /* Typography */
 .title-text {
-  font-family: 'Fredoka', sans-serif;
+  font-family: var(--font-family);
   font-size: 3.5rem;
   font-weight: 700;
-  color: #FF69B4; /* Hot Pink */
-  text-shadow: 2px 2px 0px #FFF, 4px 4px 0px rgba(0,0,0,0.1);
+  color: var(--primary-1);
+  text-shadow: 2px 2px 0px #FFF, 4px 4px 0px rgba(0, 0, 0, 0.1);
   margin-bottom: 0.5rem;
   text-align: center;
 }
 
 .subtitle-text {
   font-size: 0.9rem;
-  color: #9370DB; /* Medium Purple */
+  color: #9370DB;
+  /* Medium Purple */
   background: white;
   padding: 4px 12px;
   border-radius: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   margin-bottom: 2rem;
   font-weight: 700;
 }
@@ -99,41 +127,50 @@ body {
   width: 100%;
   padding: 16px 24px;
   border-radius: 25px;
-  font-family: 'Fredoka', sans-serif;
+  font-family: var(--font-family);
   font-size: 1.25rem;
   font-weight: 600;
   color: white;
   margin-bottom: 12px;
   position: relative;
   transition: all 0.2s ease;
-  
-  /* Default Pink */
-  background: linear-gradient(to bottom, #FF85C1, #FF69B4);
-  box-shadow: 0 6px 0 #DB4B94, 0 12px 12px rgba(0,0,0,0.15);
+
+  /* Default Neutral Gradient */
+  background: linear-gradient(to bottom, var(--primary-1), var(--primary-2));
+  box-shadow: 0 6px 0 #b5c9c0, 0 12px 12px rgba(0, 0, 0, 0.15);
 }
 
 .bubble-btn:active {
   transform: translateY(6px);
-  box-shadow: 0 0 0 #DB4B94, 0 0px 0px rgba(0,0,0,0.15);
+  box-shadow: 0 0 0 #5d6d7e, 0 0px 0px rgba(0, 0, 0, 0.15);
 }
 
 .bubble-btn.blue {
-  background: linear-gradient(to bottom, #87CEFA, #4682B4);
-  box-shadow: 0 6px 0 #315F85, 0 12px 12px rgba(0,0,0,0.15);
+  background: linear-gradient(to bottom, #a0c4ff, #74b9ff);
+  box-shadow: 0 6px 0 #5d6d7e, 0 12px 12px rgba(0, 0, 0, 0.15);
 }
-.bubble-btn.blue:active { box-shadow: 0 0 0 #315F85; }
+
+.bubble-btn.blue:active {
+  box-shadow: 0 0 0 #5d6d7e;
+}
 
 .bubble-btn.purple {
-  background: linear-gradient(to bottom, #DDA0DD, #BA55D3);
-  box-shadow: 0 6px 0 #9932CC, 0 12px 12px rgba(0,0,0,0.15);
+  background: linear-gradient(to bottom, #d6a2e8, #b58dd9);
+  box-shadow: 0 6px 0 #8e44ad, 0 12px 12px rgba(0, 0, 0, 0.15);
 }
-.bubble-btn.purple:active { box-shadow: 0 0 0 #9932CC; }
+
+.bubble-btn.purple:active {
+  box-shadow: 0 0 0 #8e44ad;
+}
 
 .bubble-btn.green {
-  background: linear-gradient(to bottom, #98FB98, #3CB371);
-  box-shadow: 0 6px 0 #2E8B57, 0 12px 12px rgba(0,0,0,0.15);
+  background: linear-gradient(to bottom, #b2f5ea, #81ecec);
+  box-shadow: 0 6px 0 #00b894, 0 12px 12px rgba(0, 0, 0, 0.15);
 }
-.bubble-btn.green:active { box-shadow: 0 0 0 #2E8B57; }
+
+.bubble-btn.green:active {
+  box-shadow: 0 0 0 #00b894;
+}
 
 /* Inputs */
 .cute-input {
@@ -171,11 +208,11 @@ body {
 /* Mode Switcher */
 .mode-switch {
   display: flex;
-  background: rgba(255,255,255,0.6);
+  background: rgba(255, 255, 255, 0.6);
   padding: 6px;
   border-radius: 50px;
   margin-bottom: 24px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
 .mode-btn {

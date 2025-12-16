@@ -11,8 +11,12 @@ export class Bastion extends Player {
     constructor(scene: Phaser.Scene, x: number, y: number, id: string, isLocal: boolean) {
         super(scene, x, y, id, isLocal);
 
-        // 0. Visuals: "The Tortoise" - Heavy Green Square
-        this.drawTortoise(0x44AA44);
+        // Visual distinction: Sprite
+        this.coreShape.visible = false;
+
+        this.visualSprite = scene.add.sprite(0, 0, 'hero_bastion');
+        this.visualSprite.setDisplaySize(85, 85); // Big boy
+        this.add(this.visualSprite);
 
         // 1. Mobile Shield Visuals
         this.shield = scene.add.graphics();
@@ -26,26 +30,7 @@ export class Bastion extends Player {
         this.speedMultiplier = 0.8; // Slower
     }
 
-    drawTortoise(color: number) {
-        const shape = (this as any).coreShape as Phaser.GameObjects.Graphics;
-        shape.clear();
-
-        // Shell (Rounded Rect essentially, but drawn manually for geometry)
-        shape.fillStyle(color, 1);
-        shape.lineStyle(3, 0x114411, 1);
-
-        // Draw a thick square
-        shape.fillRect(-18, -18, 36, 36);
-        shape.strokeRect(-18, -18, 36, 36);
-
-        // Shell segments
-        shape.lineStyle(2, 0x226622, 0.6);
-        shape.strokeRect(-10, -10, 20, 20);
-
-        // Head (indicates direction?)
-        shape.fillStyle(0x66CC66, 1);
-        shape.fillCircle(0, -22, 8);
-    }
+    // drawTortoise removed
 
     update() {
         super.update();

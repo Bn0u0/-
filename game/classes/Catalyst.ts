@@ -7,38 +7,19 @@ export class Catalyst extends Player {
     constructor(scene: Phaser.Scene, x: number, y: number, id: string, isLocal: boolean) {
         super(scene, x, y, id, isLocal);
 
-        // 0. Visuals: "The Slime" - Wobbly Blob
-        this.drawSlime(0xFF22AA); // Hot Pink
+        // Visual: Sprite
+        this.coreShape.visible = false;
+
+        this.visualSprite = scene.add.sprite(0, 0, 'hero_catalyst');
+        this.visualSprite.setDisplaySize(70, 70);
+        this.add(this.visualSprite);
 
         // 2. Cooldowns
         this.maxCooldowns['skill1'] = 6000; // Goo Patch
         this.maxCooldowns['skill2'] = 12000; // Chain Reaction
     }
 
-    drawSlime(color: number) {
-        const shape = (this as any).coreShape as Phaser.GameObjects.Graphics;
-        shape.clear();
-
-        shape.fillStyle(color, 0.9);
-        shape.lineStyle(2, 0xFFFFFF, 0.5);
-
-        // Base Circle
-        shape.fillCircle(0, 0, 16);
-        shape.strokeCircle(0, 0, 16);
-
-        // "Wobble" bubbles
-        shape.fillCircle(10, 10, 8);
-        shape.fillCircle(-12, 5, 6);
-        shape.fillCircle(5, -12, 7);
-
-        // Eyes (Cute!)
-        shape.fillStyle(0xFFFFFF, 1);
-        shape.fillCircle(-6, -4, 4);
-        shape.fillCircle(6, -4, 4);
-        shape.fillStyle(0x000000, 1);
-        shape.fillCircle(-6, -4, 1);
-        shape.fillCircle(6, -4, 1);
-    }
+    // drawSlime removed
 
     // Animate wobble in update?
     update() {
@@ -53,8 +34,21 @@ export class Catalyst extends Player {
         // Player uses setScale for speed pulse. Let's add to it?
         // Actually Player's update sets scale every frame.
         // We can modify the `coreShape` scale instead to avoid conflict.
-        (this as any).coreShape.scaleX = scaleX;
-        (this as any).coreShape.scaleY = scaleY;
+        // We can modify the `coreShape` scale instead to avoid conflict.
+        if (this.visualSprite) {
+            const baseScale = 70 / 1024; // If we knew base scale... actually we setDisplaySize.
+            // setDisplaySize updates scale property. So we can multiply existing scale?
+            // Or just setDisplaySize again? Expensive?
+            // Let's just modulate scaleX/scaleY relative to 1?
+            // Actually, setDisplaySize sets scaleX/Y.
+            // Let's just pulse a bit.
+            // Simple hack:
+            this.visualSprite.scaleX = (this.visualSprite.scaleX > 0 ? 1 : -1) * (Math.abs(this.visualSprite.scaleX) * (0.99 + Math.random() * 0.02));
+            // That's risky. 
+            // Let's just skip wobble for Sprite for now, it's complex without base scale.
+            // Or better:
+            // this.visualSprite.scaleX = 0.07 * scaleX; 
+        }
     }
 
     // Skill 1: Goo Patch

@@ -10,44 +10,17 @@ export class Weaver extends Player {
 
     constructor(scene: Phaser.Scene, x: number, y: number, id: string, isLocal: boolean) {
         super(scene, x, y, id, isLocal);
-        // Visual: The Bee
-        this.drawBee(0xFFDD00); // Yellow
+        // Visual: Sprite
+        this.coreShape.visible = false;
+
+        this.visualSprite = scene.add.sprite(0, 0, 'hero_weaver');
+        this.visualSprite.setDisplaySize(60, 60);
+        this.add(this.visualSprite);
+
         this.speedMultiplier = 1.2; // Faster
     }
 
-    drawBee(color: number) {
-        const shape = (this as any).coreShape as Phaser.GameObjects.Graphics;
-        shape.clear();
-
-        // Wings (Draw first to be under body)
-        shape.fillStyle(0xFFFFFF, 0.5);
-        shape.fillEllipse(-15, -5, 12, 8); // Left Wing
-        shape.fillEllipse(15, -5, 12, 8);  // Right Wing
-
-        // Body (Oval)
-        shape.fillStyle(color, 1);
-        shape.fillEllipse(0, 0, 14, 18);
-        shape.lineStyle(1, 0x000000, 1);
-        shape.strokeEllipse(0, 0, 14, 18);
-
-        // Stripes
-        shape.fillStyle(0x000000, 1);
-        shape.fillRect(-10, -3, 20, 3);
-        shape.fillRect(-8, 5, 16, 3);
-
-        // Eyes
-        shape.fillStyle(0x000000, 1);
-        shape.fillCircle(-4, -5, 2);
-        shape.fillCircle(4, -5, 2);
-
-        // Stinger
-        shape.beginPath();
-        shape.moveTo(0, 18);
-        shape.lineTo(-2, 22);
-        shape.lineTo(2, 22);
-        shape.fillStyle(0x000000, 1);
-        shape.fillPath();
-    }
+    // drawBee removed
 
     updateCombat(enemies: Phaser.GameObjects.Group, projectiles: Phaser.GameObjects.Group) {
         this.fireTimer += 16.6;

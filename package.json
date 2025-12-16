@@ -10,16 +10,20 @@
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
+    "classnames": "^2.5.1",
     "eventemitter3": "^5.0.1",
     "peerjs": "^1.5.2",
     "phaser": "^3.80.1",
     "react": "^18.2.0",
-    "react-dom": "18.2.0"
+    "react-dom": "18.2.0",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/canvas-confetti": "^1.9.0",
+    "@types/classnames": "^2.3.0",
     "@types/react": "18.2.66",
     "@types/react-dom": "18.2.22",
+    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.2.1",
     "typescript": "^5.2.2",
     "vite": "^5.2.0"

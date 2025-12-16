@@ -115,11 +115,10 @@ export class TerrainManager {
         tile.instance = g;
 
         if (type === TileType.GROUND) {
-            // Checkered floor pattern
-            const isDark = (gridX + gridY) % 2 === 0;
-            g.fillStyle(isDark ? 0x222222 : 0x282828, 1);
-            g.fillRect(worldX, worldY, this.tileSize, this.tileSize);
-            g.setDepth(-1); // Ground layer
+            // Textured Floor
+            this.scene.add.image(worldX + this.tileSize / 2, worldY + this.tileSize / 2, 'floor')
+                .setDisplaySize(this.tileSize, this.tileSize)
+                .setDepth(-1);
         }
         else if (type === TileType.WALL) {
             // 2.5D Block

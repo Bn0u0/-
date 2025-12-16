@@ -26,6 +26,7 @@ export class Player extends Phaser.GameObjects.Container {
     declare public setDepth: (value: number) => this;
 
     protected coreShape: Phaser.GameObjects.Graphics;
+    public visualSprite?: Phaser.GameObjects.Sprite;
     private emitter: Phaser.GameObjects.Particles.ParticleEmitter;
     private shadow: Phaser.GameObjects.Ellipse; // 2.5D Anchor
 
@@ -170,6 +171,8 @@ export class Player extends Phaser.GameObjects.Container {
 
         // Apply Z offset to visuals
         this.coreShape.y = -this.z;
+        if (this.visualSprite) this.visualSprite.y = -this.z;
+
         this.shadow.setScale(1 - (this.z / 200)); // Shadow shrinks
         this.shadow.setAlpha(0.4 - (this.z / 300));
 
@@ -193,6 +196,12 @@ export class Player extends Phaser.GameObjects.Container {
         // Visual: Inner Rotate
         this.coreShape.rotation += 0.02 + (speedRatio * 0.1);
         this.coreShape.y = -this.z; // Ensure it sticks
+
+        // Sprite might not want to rotate fully, maybe just bob?
+        // For top-down tank, rotation is handled by CONTAINER rotation (facing).
+        // So we don't need to rotate sprite internally unless it's an effect.
+        // But Vanguard is a tank, it faces direction. The Container rotates.
+        // We only need to ensure Y offset.
 
         // Update Particles
         if (body.velocity.length() > 50) {

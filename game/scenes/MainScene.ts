@@ -83,6 +83,15 @@ export class MainScene extends Phaser.Scene {
         super('MainScene');
     }
 
+    preload() {
+        this.load.image('floor', 'assets/textures/floor_scifi.png');
+        this.load.image('hero_vanguard', 'assets/sprites/hero_vanguard.png');
+        this.load.image('hero_spectre', 'assets/sprites/hero_spectre.png');
+        this.load.image('hero_bastion', 'assets/sprites/hero_bastion.png');
+        this.load.image('hero_weaver', 'assets/sprites/hero_weaver.png');
+        this.load.image('hero_catalyst', 'assets/sprites/hero_catalyst.png');
+    }
+
     create() {
         this.cameras.main.setBackgroundColor(COLORS.bg);
         this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);

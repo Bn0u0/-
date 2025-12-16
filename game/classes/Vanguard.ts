@@ -12,8 +12,12 @@ export class Vanguard extends Player {
     constructor(scene: Phaser.Scene, x: number, y: number, id: string, isLocal: boolean) {
         super(scene, x, y, id, isLocal);
 
-        // Visual distinction: Beetle
-        this.drawBeetle(0x3366FF); // Blue Beetle
+        // Visual distinction: Sprite
+        this.coreShape.visible = false; // Hide hexagon
+
+        this.visualSprite = scene.add.sprite(0, 0, 'hero_vanguard');
+        this.visualSprite.setDisplaySize(80, 80); // Bigger than hitbox
+        this.add(this.visualSprite);
 
         // Create Blade Aura visuals
         this.aura = scene.add.graphics();
@@ -25,34 +29,7 @@ export class Vanguard extends Player {
         // Let's use manual check for "Spin to Win" feel.
     }
 
-    drawBeetle(color: number) {
-        const shape = (this as any).coreShape as Phaser.GameObjects.Graphics;
-        shape.clear();
-
-        shape.fillStyle(color, 1);
-        shape.lineStyle(2, 0x000000, 1);
-
-        // Body (Circle)
-        shape.fillCircle(0, 0, 18);
-        shape.strokeCircle(0, 0, 18);
-
-        // Head
-        shape.fillStyle(0x000000, 1);
-        shape.fillCircle(0, -14, 8);
-
-        // Line down middle
-        shape.beginPath();
-        shape.moveTo(0, -5);
-        shape.lineTo(0, 18);
-        shape.strokePath();
-
-        // Spots?
-        shape.fillStyle(0xFFFFFF, 0.8);
-        shape.fillCircle(-8, 5, 3);
-        shape.fillCircle(8, 5, 3);
-        shape.fillCircle(-5, 12, 2);
-        shape.fillCircle(5, 12, 2);
-    }
+    // drawBeetle removed
 
     update() {
         super.update();

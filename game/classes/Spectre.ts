@@ -11,8 +11,12 @@ export class Spectre extends Player {
     constructor(scene: Phaser.Scene, x: number, y: number, id: string, isLocal: boolean) {
         super(scene, x, y, id, isLocal);
 
-        // 0. Visuals: "The Origami Ghost" - Sharp, thin diamond shape
-        this.drawOrigamiGhost(0xA388EE); // Lavender/Purple
+        // Visual distinction: Sprite
+        this.coreShape.visible = false;
+
+        this.visualSprite = scene.add.sprite(0, 0, 'hero_spectre');
+        this.visualSprite.setDisplaySize(60, 60);
+        this.add(this.visualSprite);
 
         // 1. Snipe Aim Line
         this.snipeLine = scene.add.graphics();
@@ -23,39 +27,7 @@ export class Spectre extends Player {
         this.maxCooldowns['skill2'] = 1500; // Snipe (short cd, ammo?) lets say 1.5s is fine for main weapon feel if strong
     }
 
-    drawOrigamiGhost(color: number) {
-        // Clear base shape drawing from Player (if any) or overwrite it
-        // We need to access the protected coreShape preferably, but it's private in Player.
-        // Wait, Player.ts has private coreShape. I should make it protected in Player.ts or just draw over it?
-        // Let's assume I fixed Player.ts to be protected or just use `this.add` for new shape and hide the old one?
-        // Actually, Player constructor calls drawHexagon. 
-        // Best approach: Change Player `coreShape` to protected in previous step? 
-        // I missed that. I will shadow it for now or assume I can access it if I update Player.ts next.
-        // Let's assume I update Player.ts to protected coreShape in next step or use 'any' cast.
-        const shape = (this as any).coreShape as Phaser.GameObjects.Graphics;
-        shape.clear();
-
-        shape.lineStyle(2, 0xFFFFFF, 0.8);
-        shape.fillStyle(color, 0.8);
-
-        // Diamond / Kite shape
-        const path = new Phaser.Geom.Polygon([
-            0, -25,  // Top
-            15, 0,   // Right
-            0, 35,   // Bottom (Long tail)
-            -15, 0   // Left
-        ]);
-
-        shape.fillPoints(path.points, true);
-        shape.strokePoints(path.points, true);
-
-        // "Fold" line
-        shape.lineStyle(1, 0x000000, 0.3);
-        shape.beginPath();
-        shape.moveTo(0, -25);
-        shape.lineTo(0, 35);
-        shape.strokePath();
-    }
+    // drawOrigamiGhost removed
 
     update() {
         super.update();

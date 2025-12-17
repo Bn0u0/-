@@ -81,49 +81,66 @@ export class TerrainManager {
         const g = this.scene.add.graphics();
         this.scene.add.existing(g);
 
-        // -- NEON POP PALETTE --
-        const COL_GROUND = 0x241e3b; // Midnight Blue / Deep Violet
-        const COL_HEX = 0x3d346b;    // Lighter Violet for Grid
-        const COL_WALL_SIDE = 0x110d21; // Darker Deep
-        const COL_WALL_TOP = 0x4b3d8f;  // Bright Violet
-        const COL_GLOW = 0x00FFFF;      // Cyan Glow
+        // -- NEON GLITCH PALETTE --
+        const COL_GROUND = 0x1a0b2e; // Deep Void Purple
+        const COL_HEX = 0x432c7a;    // Neon Violet Grid
+        const COL_WALL_SIDE = 0x0f0518; // Obsidian
+        const COL_WALL_TOP = 0x2d1b4e;  // Dark Crystal
+        const COL_GLOW = 0x00ff9d;      // Cyber Green Glow
+        const COL_DECOR = 0x5d2c7a;     // Debris Color
 
         if (type === TileType.GROUND) {
-            // 1. Base Ground (Midnight Blue)
+            // 1. Base Ground
             g.fillStyle(COL_GROUND, 1);
             g.fillRect(worldX, worldY, this.tileSize, this.tileSize);
 
             // 2. Soft Hexagon Pattern (Grid)
-            // Draw a hexagon in the center
-            g.lineStyle(2, COL_HEX, 0.3);
+            g.lineStyle(2, COL_HEX, 0.15); // Faint
             const cx = worldX + this.tileSize / 2;
             const cy = worldY + this.tileSize / 2;
             const r = this.tileSize / 2.5;
-
             this.drawHex(g, cx, cy, r);
 
-            // 3. Decorations (Glowing dots instead of scorch marks)
-            if (Math.random() < 0.15) {
-                g.fillStyle(COL_GLOW, 0.2);
-                g.fillCircle(worldX + Math.random() * 64, worldY + Math.random() * 64, 2);
+            // 3. TASK_VF_003: Decoration Scatter (Debris)
+            if (Math.random() < 0.25) { // 25% chance
+                const shards = Math.floor(Math.random() * 3) + 1;
+                g.fillStyle(COL_DECOR, 0.4);
+                for (let i = 0; i < shards; i++) {
+                    const sx = worldX + Math.random() * this.tileSize;
+                    const sy = worldY + Math.random() * this.tileSize;
+                    const size = Math.random() * 6 + 2;
+                    g.fillRect(sx, sy, size, size); // Pixel shards
+                }
+            }
+
+            // 4. Glitch Dots (Rare)
+            if (Math.random() < 0.05) {
+                g.fillStyle(COL_GLOW, 0.6);
+                g.fillRect(worldX + Math.random() * 60, worldY + Math.random() * 60, 4, 4);
             }
 
             g.setDepth(-10);
         } else if (type === TileType.WALL) {
-            // "Round" Obstacles / Crystal Rocks in 2.5D
-            // Using Rounded Rect for softer look
+            // "Digital Monolith" Style
 
-            // Side (Shadow)
+            // Side (Darkness)
             g.fillStyle(COL_WALL_SIDE, 1);
             g.fillRect(worldX, worldY + this.tileSize, this.tileSize, height);
 
-            // Top (Crystal)
+            // Top (Matte)
             g.fillStyle(COL_WALL_TOP, 1);
-            g.fillRoundedRect(worldX, worldY - height, this.tileSize, this.tileSize + height, 12);
+            g.fillRect(worldX, worldY - height, this.tileSize, this.tileSize + height);
 
-            // Inner Highlight (Crystal Facet)
-            g.fillStyle(0xffffff, 0.1);
-            g.fillRoundedRect(worldX + 10, worldY - height + 10, this.tileSize - 20, this.tileSize - 20, 8);
+            // Neon Edge (Top Highlight)
+            g.fillStyle(COL_HEX, 1);
+            g.fillRect(worldX, worldY - height, this.tileSize, 4); // Top strip
+
+            // Glitch Lines on Wall
+            if (Math.random() < 0.3) {
+                g.fillStyle(COL_GLOW, 0.3);
+                g.fillRect(worldX + 10, worldY - height + 20 + Math.random() * 20, 2, 10);
+                g.fillRect(worldX + 20, worldY - height + 40, 20, 2);
+            }
 
             // Physics Body
             const zone = this.scene.add.zone(worldX + 32, worldY + 32, this.tileSize, this.tileSize);

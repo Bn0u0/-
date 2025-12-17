@@ -63,7 +63,20 @@ const App: React.FC = () => {
         // Start Game
         metaGame.startMatch(); // Reset state
         setAppState('COMBAT');
-        EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
+
+        // Wait for Scene to be ready before firing Start Match
+        // Use a one-time listener or just a loop?
+        // Let's rely on MainScene sending SCENE_READY
+        const onSceneReady = () => {
+            EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
+            EventBus.off('SCENE_READY', onSceneReady);
+        };
+        EventBus.on('SCENE_READY', onSceneReady);
+
+        // Backup: If scene already ready?
+        setTimeout(() => {
+            EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
+        }, 1000); // Fallback
     };
 
     // Called from Hideout -> Deploy
@@ -113,6 +126,8 @@ const App: React.FC = () => {
                 style={{ visibility: appState === 'COMBAT' ? 'visible' : 'hidden' }}
             >
                 <PhaserGame />
+                <GameOverlay />
+
                 {appState === 'COMBAT' && (
                     <>
                         <GameOverlay />

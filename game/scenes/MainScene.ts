@@ -144,6 +144,15 @@ export class MainScene extends Phaser.Scene {
         this.lightLayer = this.add.renderTexture(0, 0, this.scale.width, this.scale.height);
         this.lightLayer.setScrollFactor(0);
 
+        // TASK_VF_002: Bloom for Neon Glow
+        if (this.cameras.main.postFX) {
+            // bloom(color, offsetX, offsetY, blurStrength, strength, quality)
+            // or just simple bloom in newer Phaser
+            const bloom = this.cameras.main.postFX.addBloom(0xffffff, 1, 1, 1.2, 1.5);
+            // High threshold to only glow neon inputs (Phaser bloom doesn't have threshold prop easily accessible in basic addBloom, 
+            // but it relies on brightness. Our new palette uses 0x00FFFF and 0xFF00FF which are very bright.)
+        }
+
         // Groups
         this.enemyGroup = this.add.group({ classType: Enemy, runChildUpdate: true });
         this.projectileGroup = this.add.group({ runChildUpdate: true }); // Generic group for now
@@ -358,19 +367,19 @@ export class MainScene extends Phaser.Scene {
         this.updateCameraZoom();
         this.emitStatsUpdate();
 
-        // --- HOTFIX CAMERA START ---
-        if (this.myUnit) {
-            // 1. 強制設定角色到地圖安全中間位置
-            this.myUnit.setPosition(1000, 1000);
-            // 2. 攝影機立刻鎖定 (true = 無平滑過度，避免暈眩)
-            this.cameras.main.startFollow(this.myUnit, true);
-            this.cameras.main.setZoom(1);
-            // 3. 確保角色在最上層
-            this.myUnit.setDepth(100);
-        } else {
-            console.error('Player creation failed!');
-        }
         // --- HOTFIX CAMERA END ---
+
+        // RACE CONDITION FIX: Check if we missed the START_MATCH event
+        // If App.tsx sent it before we were ready, we manually trigger it now.
+        // We can check MetaGameService state if relevant, or just rely on a slight delay if assuming App -> Scene flow.
+        this.time.delayedCall(100, () => {
+            // If game hasn't started yet but should have?
+            // Actually, let's just emit SCENE_READY so App knows to ping us? 
+            // Or simpler: Check if we are in COMBAT state according to MetaGame?
+            // Since we don't import MetaGame service directly here (circular?), let's just rely on App re-emitting if needed.
+            // BUT, for now, let's cheat and force start if we know we are in Game Mode.
+            EventBus.emit('SCENE_READY');
+        });
     }
 
     handleResize() {
@@ -408,7 +417,8 @@ export class MainScene extends Phaser.Scene {
             }
 
             if (this.myUnit) {
-                this.cameras.main.startFollow(this.myUnit, true, 1, 1);
+                // Lerp: 0.1 for smooth catch-up
+                this.cameras.main.startFollow(this.myUnit, true, 0.08, 0.08);
                 this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
             }
         }

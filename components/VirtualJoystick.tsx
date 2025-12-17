@@ -6,7 +6,7 @@ interface VirtualJoystickProps {
     onSkill: (skill: 'DASH' | 'Q' | 'E') => void;
 }
 
-export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
+export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkill }) => {
     // Dynamic Joystick State
     const [isVisible, setIsVisible] = useState(false);
     const [origin, setOrigin] = useState({ x: 0, y: 0 }); // Where touch started
@@ -15,12 +15,20 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
     // Config
     const RADIUS = 75; // Max drag radius
 
+    // Flick Detection State
+    const startTimeRef = useRef(0);
+    const maxMagRef = useRef(0);
+
     const handleTouchStart = (e: React.TouchEvent) => {
         const touch = e.changedTouches[0];
         setOrigin({ x: touch.clientX, y: touch.clientY });
         setCurrent({ x: touch.clientX, y: touch.clientY });
         setIsVisible(true);
         onMove(0, 0); // Reset
+
+        // Flick Init
+        startTimeRef.current = Date.now();
+        maxMagRef.current = 0;
     };
 
     const handleTouchMove = (e: React.TouchEvent) => {
@@ -30,6 +38,9 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
         let dx = touch.clientX - origin.x;
         let dy = touch.clientY - origin.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Track Max Magnitude for Flick
+        if (dist > maxMagRef.current) maxMagRef.current = dist;
 
         // Clamp
         if (dist > RADIUS) {
@@ -47,6 +58,23 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
     const handleTouchEnd = () => {
         setIsVisible(false);
         onMove(0, 0);
+
+        // Flick Check
+        const duration = Date.now() - startTimeRef.current;
+        if (duration < 250 && maxMagRef.current > 30) {
+            // Short duration, decent movement -> FLICK
+            onSkill('DASH');
+        }
+    };
+
+    // Mouse Start (for consistency)
+    const handleMouseDown = (e: React.MouseEvent) => {
+        setOrigin({ x: e.clientX, y: e.clientY });
+        setCurrent({ x: e.clientX, y: e.clientY });
+        setIsVisible(true);
+        onMove(0, 0);
+        startTimeRef.current = Date.now();
+        maxMagRef.current = 0;
     };
 
     // Global prevent default for smooth touch
@@ -58,11 +86,34 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
 
     return (
         <div
-            className="absolute inset-0 z-[9999] touch-none"
+            className="absolute inset-0 z-[9999] touch-none pointer-events-auto"
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onTouchCancel={handleTouchEnd}
+
+            // Mouse Support
+            onMouseDown={handleMouseDown}
+            onMouseMove={(e) => {
+                if (!isVisible) return;
+                let dx = e.clientX - origin.x;
+                let dy = e.clientY - origin.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist > maxMagRef.current) maxMagRef.current = dist;
+
+                if (dist > RADIUS) {
+                    const ratio = RADIUS / dist;
+                    dx *= ratio; dy *= ratio;
+                }
+                setCurrent({ x: origin.x + dx, y: origin.y + dy });
+                onMove(dx / RADIUS, dy / RADIUS);
+            }}
+            onMouseUp={handleTouchEnd}
+            onMouseLeave={() => {
+                setIsVisible(false);
+                onMove(0, 0);
+            }}
         >
             {isVisible && (
                 <div

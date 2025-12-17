@@ -134,7 +134,7 @@ export class InputSystem {
                 // Threshold: 400px/s = 0.4 px/ms
                 const velocity = dist / duration;
 
-                if (velocity > 0.5 && duration < 300 && dist > 30) {
+                if (velocity > 0.4 && duration < 300 && dist > 30) {
                     // FLICK!
                     player.dash();
                     this.scene.events.emit('SHOW_FLOATING_TEXT', {

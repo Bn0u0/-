@@ -5,9 +5,10 @@ import { CLASSES, ClassType } from '../game/factories/PlayerFactory';
 
 interface MainMenuProps {
     onStartGame: (role: string) => void;
+    onOpenHideout: () => void;
 }
 
-export const MainMenu: React.FC<MainMenuProps> = ({ onStartGame }) => {
+export const MainMenu: React.FC<MainMenuProps> = ({ onStartGame, onOpenHideout }) => {
     const [modal, setModal] = useState({ isOpen: false, title: '', msg: '' });
 
     // Character Selection State
@@ -91,10 +92,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onStartGame }) => {
                 <div className="flex flex-col gap-3 w-full">
                     <button
                         className="w-full py-4 rounded-full bg-white/10 hover:bg-white/20 border-2 border-[#00FFFF] text-[#00FFFF] font-bold tracking-widest active:scale-95 transition-all text-sm"
-                        onClick={() => showModal("SQUAD LINK", "目前伺服器充滿了愛與和平。\n\n功能開發中... 💖")}
+                        onClick={() => {
+                            HapticService.light();
+                            onOpenHideout();
+                        }}
                         style={{ fontFamily: '"Varela Round", sans-serif' }}
                     >
-                        SQUAD LINK (BETA)
+                        HIDEOUT (倉庫) 📦
                     </button>
 
                     <button

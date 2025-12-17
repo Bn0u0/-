@@ -30,45 +30,46 @@ export class LootService {
         const def = getItemDef(itemDefId);
         if (!def) return;
 
-        // Create Visual
-        const loot = this.scene.add.container(x, y);
+        // Visuals: Use Sprite Icon
+        let texture = 'icon_scrap_metal';
+        if (def.type === ItemType.ARTIFACT) texture = 'icon_artifact_box';
 
-        // Visuals based on Item Type
-        let color = 0xffffff;
-        if (def.rarity === ItemRarity.UNCOMMON) color = 0x00ff00;
-        if (def.rarity === ItemRarity.RARE) color = 0x00ffff;
-        if (def.rarity === ItemRarity.LEGENDARY) color = 0xffff00;
-        if (def.type === ItemType.SCRAP) color = 0x888888;
-        if (def.type === ItemType.ARTIFACT) color = 0x0088ff;
+        const loot = this.scene.add.sprite(x, y, texture);
+        loot.setDisplaySize(48, 48); // Standard Size
+        loot.setScale(0); // Pop in start
 
-        // Base Shape
-        const box = this.scene.add.rectangle(0, 0, 24, 24, 0x111111);
-        box.setStrokeStyle(2, color);
-
-        // Icon/Text
-        const text = this.scene.add.text(0, 0, def.icon, { fontSize: '16px' }).setOrigin(0.5);
-
-        // Effects
-        if (def.type === ItemType.ARTIFACT) {
-            const glow = this.scene.add.star(0, 0, 4, 8, 16, color, 0.5);
-            this.scene.tweens.add({
-                targets: glow, angle: 360, duration: 3000, repeat: -1
-            });
-            loot.add(glow);
-        }
-
-        loot.add([box, text]);
-        loot.setSize(24, 24);
-
+        // Physics
         this.scene.physics.add.existing(loot);
         (loot.body as Phaser.Physics.Arcade.Body).setBounce(0.5).setDrag(100).setVelocity(
             Phaser.Math.Between(-50, 50),
             Phaser.Math.Between(-50, 50)
         );
 
+        // Pop & Bounce Animation
+        this.scene.tweens.add({
+            targets: loot,
+            scale: { from: 0, to: 0.6 }, // 0.6 relative to original texture size
+            y: y - 20,
+            duration: 400,
+            ease: 'Back.out',
+        });
+
+        // Floating Animation
+        this.scene.tweens.add({
+            targets: loot,
+            y: '+=5',
+            duration: 1500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.inOut',
+            delay: 400
+        });
+
         // Store Definition Data for Pickup
         loot.setData('itemDef', def);
 
         this.group.add(loot);
     }
+
+
 }

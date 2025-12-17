@@ -92,7 +92,10 @@ export class MainScene extends Phaser.Scene {
     preload() {
         this.load.image('floor', 'assets/textures/floor_scifi.png');
         this.load.image('wall', 'assets/textures/wall_tech.png');
-        // Legacy sprites deleted. Using Vector Graphics for now via PlayerFactory/drawGuardian
+
+        // Loot Icons (Operation Stitch)
+        this.load.image('icon_artifact_box', 'assets/icons/icon_artifact_box.png');
+        this.load.image('icon_scrap_metal', 'assets/icons/icon_scrap_metal.png');
     }
 
     create() {
@@ -146,6 +149,44 @@ export class MainScene extends Phaser.Scene {
             const score = enemy.value || 10;
             this.awardScore(score);
             this.lootService.trySpawnLoot(enemy.x, enemy.y);
+
+            // TASK_STITCH_003: XP Orbs Visuals
+            const orbCount = Phaser.Math.Between(1, 3);
+            for (let i = 0; i < orbCount; i++) {
+                // Yellow glowing orb
+                const orb = this.add.circle(enemy.x, enemy.y, 4, 0xFFFF00).setDepth(120);
+                this.physics.add.existing(orb);
+                const body = orb.body as Phaser.Physics.Arcade.Body;
+
+                // 1. Burst Out
+                body.setVelocity(Phaser.Math.Between(-150, 150), Phaser.Math.Between(-150, 150));
+                body.setDrag(200);
+
+                // 2. Magnet to Player after delay
+                this.time.delayedCall(500 + i * 100, () => {
+                    if (!orb.scene) return; // Destroyed?
+
+                    // Simple Magnet Update Loop
+                    const magnetEvent = this.time.addEvent({
+                        delay: 50,
+                        loop: true,
+                        callback: () => {
+                            if (!this.myUnit || !orb.scene) { magnetEvent.remove(); return; }
+
+                            this.physics.moveToObject(orb, this.myUnit, 600); // High speed
+
+                            // Check distance for "Collection"
+                            const dist = Phaser.Math.Distance.Between(orb.x, orb.y, this.myUnit.x, this.myUnit.y);
+                            if (dist < 30) {
+                                // Collected!
+                                orb.destroy();
+                                magnetEvent.remove();
+                                // Optional: Float text or flash
+                            }
+                        }
+                    });
+                });
+            }
 
             // V5.0 Boss Lockdown Logic
             if (enemy.config?.id === 'BOSS_GOLEM') {

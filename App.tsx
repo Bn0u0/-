@@ -90,7 +90,10 @@ const App: React.FC = () => {
 
             {/* State: MAIN_MENU (Instant Challenge) */}
             {appState === 'MAIN_MENU' && (
-                <MainMenu onStartGame={handleStartGame} />
+                <MainMenu
+                    onStartGame={handleStartGame}
+                    onOpenHideout={() => setAppState('HIDEOUT')}
+                />
             )}
 
             {/* State: HIDEOUT */}

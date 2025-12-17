@@ -5,48 +5,39 @@ interface BootScreenProps {
 }
 
 export const BootScreen: React.FC<BootScreenProps> = ({ onStart }) => {
-    const [text, setText] = useState('');
-    const fullText = "神經網絡連結中...";
+    const [loaded, setLoaded] = useState(false);
+    const [progress, setProgress] = useState(0);
 
-    // Typewriter effect
     useEffect(() => {
-        let i = 0;
         const interval = setInterval(() => {
-            setText(fullText.substring(0, i + 1));
-            i++;
-            if (i >= fullText.length) clearInterval(interval);
-        }, 100);
+            setProgress(prev => {
+                if (prev >= 100) {
+                    clearInterval(interval);
+                    setLoaded(true);
+                    return 100;
+                }
+                return prev + 5;
+            });
+        }, 50);
         return () => clearInterval(interval);
     }, []);
 
-    const handleClick = () => {
-        // Simple glitch out
-        const audio = new AudioContext(); // Init Audio Context on click
-        audio.resume();
-
-        onStart();
-    };
-
     return (
-        <div
-            onClick={handleClick}
-            className="fixed inset-0 bg-black flex flex-col items-center justify-center cursor-pointer select-none"
+        <div 
+            className="fixed inset-0 bg-black flex flex-col items-center justify-center z-[100] cursor-pointer"
+            onClick={() => loaded && onStart()}
         >
-            <div className="relative">
-                <h1 className="text-6xl md:text-8xl font-black tracking-tighter text-[#00FFFF] animate-pulse">
-                    {text}
-                    <span className="animate-blink">_</span>
-                </h1>
-
-                {/* Glitch Shadows */}
-                <h1 className="absolute top-0 left-0 text-6xl md:text-8xl font-black tracking-tighter text-[#FF0055] opacity-50 translate-x-[2px] animate-[glitch_2s_infinite]">
-                    {text}
-                </h1>
+            <div className="text-6xl mb-8 animate-pulse">🐰</div>
+            <div className="w-64 h-2 bg-gray-800 rounded-full overflow-hidden border border-gray-700">
+                <div 
+                    className="h-full bg-[#00FFFF] transition-all duration-75 ease-out shadow-[0_0_10px_#00FFFF]"
+                    style={{ width: `${progress}%` }}
+                />
             </div>
-
-            <div className="mt-8 text-gray-500 tracking-[0.5em] text-xs animate-bounce">
-                點擊螢幕以初始化
+            <div className="mt-4 font-mono text-[#00FFFF] tracking-widest text-sm">
+                {loaded ? '>> TAP TO INITIALIZE <<' : `SYSTEM LOADING... ${progress}%`}
             </div>
+            <div className="absolute inset-0 pointer-events-none opacity-5 bg-[url('/assets/textures/floor_scifi.png')] bg-repeat"></div>
         </div>
     );
 };

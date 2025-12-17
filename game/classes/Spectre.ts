@@ -93,7 +93,11 @@ export class Spectre extends Player {
             const vecX = Math.cos(angle);
             const vecY = Math.sin(angle);
 
-            mainScene.fireProjectile(this.x + vecX * 30, this.y + vecY * 30, angle, 2000, 50, 'piercing'); // speed 2000, dmg 50
+            const combatInfo = this.getDamage();
+            // Snipe: 3x Damage multiplier
+            const finalDmg = Math.floor(combatInfo.dmg * 3);
+
+            mainScene.fireProjectile(this.x + vecX * 30, this.y + vecY * 30, angle, 2000, finalDmg, 'piercing'); // speed 2000
 
             // Recoil
             const body = this.body as Phaser.Physics.Arcade.Body;

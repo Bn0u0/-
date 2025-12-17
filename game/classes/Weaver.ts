@@ -83,7 +83,8 @@ export class Weaver extends Player {
 
     private fire(target: Enemy, projectiles: Phaser.GameObjects.Group) {
         // Create projectile
-        const p = new Projectile(this.scene, this.x, this.y, 50, this.id);
+        const d = this.getDamage();
+        const p = new Projectile(this.scene, this.x, this.y, d.dmg, this.id);
         const angle = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
 
         // Homing behavior

@@ -48,26 +48,43 @@ export class WaveManager {
     }
 
     private spawnEnemy(isElite: boolean, origin: { x: number, y: number }) {
-        const radius = 800 + Math.random() * 400;
-        const angle = Math.random() * Math.PI * 2;
-        const x = origin.x + Math.cos(angle) * radius;
-        const y = origin.y + Math.sin(angle) * radius;
+        // Safe Spawn Check
+        let finalX = origin.x;
+        let finalY = origin.y;
+
+        // Attempt to find a valid ground tile
+        const mainScene = this.scene as any;
+        if (mainScene.terrainManager) {
+            // Try to find a spawn point somewhat near the player?
+            // For MVP, just random ground tile is safer than Void.
+            const spawnParams = mainScene.terrainManager.getRandomGroundTile();
+            if (spawnParams) {
+                finalX = spawnParams.x;
+                finalY = spawnParams.y;
+            } else {
+                // Fallback: Random circle if map gen failed
+                const radius = 800 + Math.random() * 400;
+                const angle = Math.random() * Math.PI * 2;
+                finalX = origin.x + Math.cos(angle) * radius;
+                finalY = origin.y + Math.sin(angle) * radius;
+            }
+        }
 
         let enemy: Enemy;
         if (isElite) {
             // Boss or Charger swarm
             if (this.wave % 10 === 0) {
-                enemy = new EnemyBoss(this.scene, x, y);
+                enemy = new EnemyBoss(this.scene, finalX, finalY);
             } else {
-                enemy = new EnemyCharger(this.scene, x, y);
+                enemy = new EnemyCharger(this.scene, finalX, finalY);
             }
         } else {
             // Mix in chargers occasionally in later waves
             const roll = Math.random();
             if (this.wave > 3 && roll < 0.2) {
-                enemy = new EnemyCharger(this.scene, x, y);
+                enemy = new EnemyCharger(this.scene, finalX, finalY);
             } else {
-                enemy = Phaser.Math.Between(0, 1) ? new EnemyFast(this.scene, x, y) : new EnemyTank(this.scene, x, y);
+                enemy = Phaser.Math.Between(0, 1) ? new EnemyFast(this.scene, finalX, finalY) : new EnemyTank(this.scene, finalX, finalY);
             }
         }
         enemy.setDifficulty(1 + (this.wave * 0.05), 1 + (this.wave * 0.1), isElite);

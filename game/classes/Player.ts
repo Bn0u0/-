@@ -138,31 +138,39 @@ export class Player extends Phaser.GameObjects.Container {
         this.coreShape.fillCircle(0, 0, 5);
     }
 
+    // Stats Container
+    public stats = {
+        atk: 10,
+        crit: 0,
+        cooldown: 0,
+        speed: 0
+    };
+
     update() {
         const body = this.body as Phaser.Physics.Arcade.Body;
         const dt = 16.6;
 
-        // Cooldown Management
+        // Cooldown Management (Apply CDR)
+        // 10% CDR means time passes 1.1x faster for cooldowns, or we reduce max?
+        // Let's effectively reduce cooldown time needed.
+        // Simplified: Cooldowns tick down normally. When SETTING cooldown, we multiply by (1 - cdr).
         for (const key in this.cooldowns) {
             if (this.cooldowns[key] > 0) {
                 this.cooldowns[key] -= dt;
             }
         }
 
-        // 2.5D Height Physics (Simple Gravity Simulation)
+        // ... (Z Logic) ...
         if (this.z > 0 || this.zVelocity !== 0) {
             this.z += this.zVelocity;
-            this.zVelocity -= 0.8; // Gravity
+            this.zVelocity -= 0.8;
             if (this.z < 0) {
                 this.z = 0;
                 this.zVelocity = 0;
             }
         }
-
-        // Apply Z offset to visuals (Pure 2D Y-offset)
         this.coreShape.y = -this.z;
         if (this.visualSprite) this.visualSprite.y = -this.z;
-
         this.shadow.setScale(1 - (this.z / 200));
         this.shadow.setAlpha(0.4 - (this.z / 300));
 
@@ -174,59 +182,88 @@ export class Player extends Phaser.GameObjects.Container {
                 this.isDashing = false;
                 this.isInvulnerable = false;
                 body.drag.set(PHYSICS.drag);
-                body.maxVelocity.set(PHYSICS.maxVelocity);
+                // Reset Max Velocity to Stats Speed
+                this.updateMaxSpeed();
             }
             return;
         }
 
+        // Apply Stats Speed to Max Velocity
+        // We do this continuously or just once? Continuously is safer for buffs.
+        this.updateMaxSpeed();
+
         // Visual: Breathing Pulse based on speed
-        const speedRatio = body.velocity.length() / PHYSICS.maxVelocity;
+        const maxSpeed = body.maxVelocity.x || PHYSICS.maxVelocity; // Fallback
+        const speedRatio = body.velocity.length() / maxSpeed;
         const scalePulse = 1 + Math.sin(this.scene.time.now / 200) * 0.05 + (speedRatio * 0.1);
         this.setScale(scalePulse);
 
-        // Visual: Inner Rotate
         this.coreShape.rotation += 0.02 + (speedRatio * 0.1);
         this.coreShape.y = -this.z;
 
-        // Update Particles
+        // ... (Particles) ...
         if (body.velocity.length() > 50) {
             this.emitter.active = true;
             const angle = this.rotation + Math.PI / 2;
-            this.emitter.followOffset.set(
-                Math.cos(angle) * 15,
-                Math.sin(angle) * 15
-            );
+            this.emitter.followOffset.set(Math.cos(angle) * 15, Math.sin(angle) * 15);
         } else {
             this.emitter.active = false;
         }
     }
 
+    private updateMaxSpeed() {
+        const body = this.body as Phaser.Physics.Arcade.Body;
+        if (!body) return;
+
+        // Base 200 + (Speed% * 200)
+        // items provide speed as e.g. 0.05 (5%)
+        const base = PHYSICS.maxVelocity;
+        const bonus = base * (this.stats.speed || 0);
+        const final = base + bonus;
+
+        body.setMaxVelocity(final);
+    }
+
     public dash() {
         if (this.dashCooldown > 0) return;
 
+        // Calculate Cooldown with CDR
+        const baseCd = 1500;
+        const cdr = Math.min(0.5, this.stats.cooldown || 0); // Cap CDR at 50%
+        const finalCd = baseCd * (1 - cdr);
+
         this.isDashing = true;
         this.isInvulnerable = true;
-        this.dashTimer = 200; // 200ms dash
-        this.dashCooldown = 1500; // 1.5s cd
+        this.dashTimer = 200;
+        this.dashCooldown = finalCd;
 
         // Physics push
         const body = this.body as Phaser.Physics.Arcade.Body;
-        const speed = 800; // Dash speed
-        const angle = this.rotation - Math.PI / 2; // Current facing
+        const speed = 800 * (1 + (this.stats.speed || 0) * 0.5); // Dash scales slightly with speed
+        const angle = this.rotation - Math.PI / 2;
 
         body.drag.set(0);
-        body.maxVelocity.set(1000);
+        body.maxVelocity.set(1000); // Temporary uncap for dash
         body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
 
-        // Visual jump (Height simulation)
         this.zVelocity = 10;
 
-        // Visual flash
         this.scene.tweens.add({
             targets: this.coreShape,
             scale: { from: 1.5, to: 1 },
             duration: 200
         });
+    }
+
+    public getDamage(): { dmg: number, isCrit: boolean } {
+        const isCrit = Math.random() < (this.stats.crit / 100); // e.g. 5 is 5% or 0.05? Items.ts said 5 for 5%? No, Items.ts said "5" likely means 5%.
+        // Wait, in Items.ts: "crit: 5" for Mk2 Sword. "0.05" for speed.
+        // Let's assume stats.crit is PERCENTAGE (0-100).
+
+        let dmg = this.stats.atk;
+        if (isCrit) dmg *= 1.5; // 1.5x Crit Damage
+
+        return { dmg, isCrit };
     }
 
     destroy(fromScene?: boolean) {

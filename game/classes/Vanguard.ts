@@ -84,14 +84,20 @@ export class Vanguard extends Player {
 
     updateCombat(enemies: Phaser.GameObjects.Group, projectiles: Phaser.GameObjects.Group) {
         // "Spin to Win": Damage all enemies in range every 0.2s
-        this.dpsTimer += 16.6; // approx 60fps delta
-        if (this.dpsTimer > 150) { // ~6.6 hits per second
+        this.dpsTimer += 16.6;
+        if (this.dpsTimer > 150) {
             const range = 100; // 80 radius + enemy radius
-            const damage = 35;
+
+            // DYNAMIC DAMAGE
+            const combatInfo = this.getDamage();
+            // Spin attack has a multiplier (e.g. 0.5x ATK per tick because it hits fast)
+            // But let's keep it simple for now: 100% ATK per hit
+            const damage = combatInfo.dmg;
 
             enemies.getChildren().forEach((e: any) => {
                 const enemy = e as Enemy;
                 if (!enemy.active) return;
+                // ...
 
                 const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
                 if (dist < range) {

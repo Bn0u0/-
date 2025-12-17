@@ -26,7 +26,83 @@ body {
   user-select: none;
 }
 
-/* Animations */
+/* Noise Animation */
+@keyframes noise {
+  0% {
+    transform: translate(0, 0);
+  }
+
+  10% {
+    transform: translate(-5%, -5%);
+  }
+
+  20% {
+    transform: translate(-10%, 5%);
+  }
+
+  30% {
+    transform: translate(5%, -10%);
+  }
+
+  40% {
+    transform: translate(-5%, 15%);
+  }
+
+  50% {
+    transform: translate(-10%, 5%);
+  }
+
+  60% {
+    transform: translate(15%, 0);
+  }
+
+  70% {
+    transform: translate(0, 10%);
+  }
+
+  80% {
+    transform: translate(-15%, 0);
+  }
+
+  90% {
+    transform: translate(10%, 5%);
+  }
+
+  100% {
+    transform: translate(5%, 0);
+  }
+}
+
+.noise-overlay {
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.05;
+  background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyBAMAAADsEZWCAAAAGFBMVEUAAAA5OTkAAABMTExERERmZmYzMzPMzMxloRvSAAAAAXLRXHPz8/P/6fv9/f3/9fX///97a7nGAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAAiElEQVQ4jWNgGAWjYBSMglEwCoY1AAEZGCAAGQxIMCCBgwUOMiDAgQIHGRjgQIGDDApwGMOANQMCDjMwoGAGBhQwoIABDQwocEADgwoc0MCgAAccGKCAgQEFCnCgAAcKFFCgAAccKMCBAgUUcKAAByxY4IADBRQwoIABDQwocEADgwoc0MCgAAccGAAAdygN9k89+8wAAAAASUVORK5CYII=');
+  animation: noise 0.2s infinite;
+}
+
+.scanline-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(to bottom,
+      rgba(255, 255, 255, 0),
+      rgba(255, 255, 255, 0) 50%,
+      rgba(0, 0, 0, 0.1) 50%,
+      rgba(0, 0, 0, 0.1));
+  background-size: 100% 4px;
+  z-index: 9998;
+}
+
+/* Animations Logic */
 @keyframes float {
   0% {
     transform: translateY(0px);

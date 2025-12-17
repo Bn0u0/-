@@ -120,7 +120,10 @@ export class Catalyst extends Player {
 
                 if (dist < radius) {
                     // Apply heavy damage + Stun
-                    if (enemy.takeDamage) enemy.takeDamage(80);
+                    // Apply heavy damage + Stun
+                    const d = this.getDamage();
+                    const finalDmg = Math.floor(d.dmg * 4.0); // 4x ATK for Ultimate
+                    if (enemy.takeDamage) enemy.takeDamage(finalDmg);
                     // Visual pop
                     this.scene.tweens.add({
                         targets: enemy,

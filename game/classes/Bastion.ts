@@ -128,7 +128,10 @@ export class Bastion extends Player {
                     enemy.y += Math.sin(angle) * 100;
 
                     // Stun or Damage?
-                    if (enemy.takeDamage) enemy.takeDamage(20);
+                    // Stun or Damage?
+                    const d = this.getDamage();
+                    const finalDmg = Math.floor(d.dmg * 1.5); // 1.5x ATK for Shockwave
+                    if (enemy.takeDamage) enemy.takeDamage(finalDmg);
                 }
             });
         }

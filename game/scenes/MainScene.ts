@@ -14,6 +14,7 @@ import { Catalyst } from '../classes/Catalyst';
 import { Projectile } from '../classes/Projectile';
 import { PowerupService, PowerupType } from '../../services/PowerupService';
 import { LootService, LootItemDef } from '../../services/LootService';
+import { inventoryService } from '../../services/InventoryService';
 
 // Managers
 import { WaveManager } from '../managers/WaveManager';
@@ -45,6 +46,10 @@ export class MainScene extends Phaser.Scene {
     private graphics: Phaser.GameObjects.Graphics | null = null;
     private bgGrid: Phaser.GameObjects.Grid | null = null;
 
+    // Lighting
+    private lightLayer: Phaser.GameObjects.RenderTexture | null = null;
+    private lightMask: Phaser.GameObjects.Graphics | null = null;
+
     // Game Stats
     private isGameActive: boolean = false;
     private currentMode: GameMode = 'SINGLE';
@@ -55,6 +60,11 @@ export class MainScene extends Phaser.Scene {
     private score: number = 0;
     private hp: number = 100;
     private maxHp: number = 100;
+
+    // Time System
+    private survivalTime: number = 0;
+    private nextBossTime: number = 300;
+    private pulsePhase: 'SCAVENGE' | 'WARNING' | 'PURGE' = 'SCAVENGE';
 
     // Services & Managers
     private powerupService!: PowerupService;
@@ -97,11 +107,29 @@ export class MainScene extends Phaser.Scene {
         this.cameras.main.setBackgroundColor(COLORS.bg);
         this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
 
-        // Background handled by TerrainManager now
-        // this.bgGrid = this.add.grid...
+        // Background handled by TerrainManager
 
         this.graphics = this.add.graphics();
         this.graphics.setDepth(50);
+
+        // LIGHTING SETUP
+        const width = this.worldWidth;
+        const height = this.worldHeight;
+        // Optimization: Don't make RT full world size if huge. But we have camera pan.
+        // For MVP, RT matches Camera size and is pinned? Or World size?
+        // World size 4000x4000 is too big for RT usually.
+        // Better: RT matches Screen size, scrolls with camera = 0, but content moves?
+        // Let's stick to a big RT for simplicity or use a dark overlay Mesh?
+        // Easiest: A dark Rectangle covering the screen (ScrollFactor 0) with a mask?
+        // Phaser GeometryMask is expensive for many dynamic lights.
+
+        // Approach: RenderTexture covering the VIEWPORT (Screen).
+        // On update: Clear RT to Black (0.9 alpha).
+        // Draw "Light Circles" at relative positions of entities.
+        // Use blending to punch holes.
+
+        this.lightLayer = this.add.renderTexture(0, 0, this.scale.width, this.scale.height);
+        this.lightLayer.setScrollFactor(0);
 
         // Groups
         this.enemyGroup = this.add.group({ classType: Enemy, runChildUpdate: true });
@@ -111,20 +139,20 @@ export class MainScene extends Phaser.Scene {
         this.powerupService = new PowerupService(this);
         this.lootService = new LootService(this);
 
-        // Managers
+        // Managers & Systems
+        this.inputSystem = new InputSystem(this);
         this.waveManager = new WaveManager(this, this.enemyGroup);
         this.extractionManager = new ExtractionManager(this, this.worldWidth, this.worldHeight);
         this.combatManager = new CombatManager(this);
         this.terrainManager = new TerrainManager(this);
         this.playerFactory = new PlayerFactory(this);
 
-        this.extractionManager.setTerrainManager(this.terrainManager); // Inject dependency
+        this.extractionManager.setTerrainManager(this.terrainManager);
 
-        this.terrainManager.generateWorld(30, 30); // ~2000x2000 world
+        this.terrainManager.generateWorld(30, 30);
 
         // Check Projectile <-> Wall collision
         this.physics.add.collider(this.projectileGroup!, this.terrainManager.wallGroup, (proj: any) => {
-            // Visual spark?
             proj.destroy();
         });
 
@@ -259,8 +287,27 @@ export class MainScene extends Phaser.Scene {
     }
 
     update(time: number, delta: number) {
+        if (!this.myUnit) return; // Guard clause from other update
+
+        // 1. Update Time (Merged)
+        if (this.isGameActive && !this.isPaused) {
+            this.survivalTime += delta / 1000;
+        }
+
+        // 2. Pulse Logic (Merged)
+        if (this.survivalTime >= this.nextBossTime && this.pulsePhase !== 'PURGE') {
+            this.triggerPurge();
+        }
+
         this.updateBackground(time);
+
+        // Lighting Update (Fog of War)
+        this.updateLighting();
+
         if (!this.isGameActive || this.isPaused) return;
+
+        // ... Rest of update ...
+        super.update(time, delta);
 
         // 1. Inputs
         this.processLocalInput();
@@ -515,11 +562,23 @@ export class MainScene extends Phaser.Scene {
             xp: this.xp,
             xpToNextLevel: this.xpToNextLevel,
             score: this.score,
-            wave: this.waveManager.wave,
-            enemiesAlive: this.enemyGroup?.countActive() || 0,
+            wave: this.waveManager ? this.waveManager.wave : 1,
+            enemiesAlive: this.enemyGroup ? this.enemyGroup.getLength() : 0,
+            survivalTime: this.survivalTime, // Passed to UI
             cooldowns: this.myUnit ? this.myUnit.cooldowns : {},
             maxCooldowns: this.myUnit ? this.myUnit.maxCooldowns : {},
         });
+    }
+
+    private triggerPurge() {
+        this.pulsePhase = 'PURGE';
+        EventBus.emit('WAVE_START', { wave: 666, isElite: true }); // Special alert
+
+        // Spawn Boss (Conceptual)
+        // this.waveManager.spawnBoss();
+
+        // Loop reset after boss death... for now just keep counting
+        this.nextBossTime += 300;
     }
 
     // --- Network (Keep as is mostly, tightly coupled to state) ---
@@ -574,6 +633,52 @@ export class MainScene extends Phaser.Scene {
         }
         else if (data.type === 'GAME_OVER') {
             this.gameOver();
+        }
+    }
+
+    private updateLighting() {
+        if (this.lightLayer && this.lightMask) {
+            // 1. Reset Darkness
+            this.lightLayer.camera.scrollX = 0;
+            this.lightLayer.camera.scrollY = 0;
+            this.lightLayer.clear();
+            this.lightLayer.fill(0x0e0d16, 0.9);
+
+            // 2. Punch Holes (Lights)
+            this.lightMask.clear();
+            this.lightMask.fillStyle(0xffffff, 1);
+
+            const drawLight = (worldX: number, worldY: number, radius: number, flicker: boolean) => {
+                const screenX = worldX - this.cameras.main.scrollX;
+                const screenY = worldY - this.cameras.main.scrollY;
+
+                if (screenX < -radius || screenX > this.scale.width + radius) return;
+                if (screenY < -radius || screenY > this.scale.height + radius) return;
+
+                const r = flicker ? radius * (0.95 + Math.random() * 0.05) : radius;
+                this.lightMask!.fillCircle(screenX, screenY, r);
+            };
+
+            // Player Light
+            if (this.myUnit && this.myUnit.active) drawLight(this.myUnit.x, this.myUnit.y, 300, true);
+            if (this.otherUnit && this.otherUnit.active) drawLight(this.otherUnit.x, this.otherUnit.y, 300, true);
+
+            // Projectile Lights
+            if (this.projectileGroup) {
+                this.projectileGroup.getChildren().forEach((p: any) => {
+                    if (p.active) drawLight(p.x, p.y, 60, true);
+                });
+            }
+
+            // Enemy Lights (Eyes)
+            if (this.enemyGroup) {
+                this.enemyGroup.getChildren().forEach((e: any) => {
+                    if (e.active) drawLight(e.x, e.y, 40, false);
+                });
+            }
+
+            // Erase lights from darkness
+            this.lightLayer.erase(this.lightMask);
         }
     }
 }

@@ -5,15 +5,21 @@ import { UserProfile } from '../services/PersistenceService';
 interface HideoutProps {
     profile: UserProfile;
     onDeploy: () => void;
+    onBack: () => void;
 }
 
-export const Hideout: React.FC<HideoutProps> = ({ profile, onDeploy }) => {
+export const Hideout: React.FC<HideoutProps> = ({ profile, onDeploy, onBack }) => {
     return (
         <div className="w-full h-full p-4 md:p-8 flex flex-col gap-4">
 
             {/* Header / Stats Bar */}
             <div className="flex justify-between items-center text-[#00FFFF] tracking-widest text-sm uppercase">
-                <div>指揮官: COMMANDER</div>
+                <div className="flex items-center gap-4">
+                    <button onClick={onBack} className="hover:text-white transition-colors">
+                        ◀ BACK
+                    </button>
+                    <div>指揮官: COMMANDER</div>
+                </div>
                 <div className="flex gap-4">
                     <span>等級.{profile.level}</span>
                     <span className="text-[#FFD700]">{profile.credits} 信用點</span>

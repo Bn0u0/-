@@ -30,13 +30,14 @@ export class Player extends Phaser.GameObjects.Container {
     private dashCooldown: number = 0;
 
     // Visuals
+    public sprite: Phaser.GameObjects.Sprite;
+    public classId: string = 'BLADE'; // Default
     protected coreShape: Phaser.GameObjects.Graphics;
     private emitter: Phaser.GameObjects.Particles.ParticleEmitter;
     private shadow: Phaser.GameObjects.Ellipse;
     public z: number = 0;
     public zVelocity: number = 0;
 
-    // Inventory / Legacy Props
     // Inventory / Legacy Props
     public lootBag: ItemDef[] = [];
     public lootWeight: number = 0; // V4.0: Encumbrance
@@ -72,10 +73,7 @@ export class Player extends Phaser.GameObjects.Container {
 
         // Particle Trail
         if (!scene.textures.exists('flare')) {
-            const graphics = scene.make.graphics({ x: 0, y: 0 });
-            graphics.fillStyle(0xffffff, 1);
-            graphics.fillCircle(4, 4, 4);
-            graphics.generateTexture('flare', 8, 8);
+            // Fallback handled in MainScene now
         }
         this.emitter = scene.add.particles(0, 0, 'flare', {
             speed: 10, scale: { start: 0.6, end: 0 }, alpha: { start: 0.5, end: 0 },
@@ -84,7 +82,12 @@ export class Player extends Phaser.GameObjects.Container {
         });
         this.emitter.setDepth(-1);
 
-        // Core Shape
+        // Sprite (Main Visual)
+        this.sprite = scene.add.sprite(0, 0, 'hero_blade'); // Default
+        this.sprite.setScale(0.8);
+        this.add(this.sprite);
+
+        // Core Shape (Auxiliary)
         this.coreShape = scene.add.graphics();
         this.add(this.coreShape);
 
@@ -107,8 +110,9 @@ export class Player extends Phaser.GameObjects.Container {
         body.setCollideWorldBounds(false);
     }
 
-    public configure(config: ClassConfig) {
+    public configure(config: ClassConfig, classId: string) {
         this.classConfig = config;
+        this.classId = classId;
 
         // Apply Base Stats
         this.stats.hp = config.stats.hp;
@@ -120,22 +124,17 @@ export class Player extends Phaser.GameObjects.Container {
     }
 
     drawGuardian(color: number) {
+        // Switch Texture
+        const key = 'hero_' + this.classId.toLowerCase();
+        if (this.scene.textures.exists(key)) {
+            this.sprite.setTexture(key);
+        }
+
+        // Tint for Team/Status
+        this.sprite.setTint(color);
+
+        // Clear legacy graphics
         this.coreShape.clear();
-
-        // Soft Glow
-        this.coreShape.fillStyle(color, 0.2);
-        this.coreShape.fillCircle(0, 0, 28);
-
-        // Outer Ring
-        this.coreShape.lineStyle(3, color, 1);
-        this.coreShape.strokeCircle(0, 0, 20);
-
-        // Inner Core
-        this.coreShape.fillStyle(0xffffff, 1);
-        this.coreShape.fillCircle(0, 0, 12);
-        this.coreShape.fillStyle(color, 0.5);
-        this.coreShape.fillCircle(0, 0, 8);
-        this.coreShape.fillCircle(0, 0, 8);
     }
 
     public recalculateStats() {
@@ -152,7 +151,6 @@ export class Player extends Phaser.GameObjects.Container {
             atk: this.classConfig.stats.atk
         };
 
-        // 2. Apply Cards (Dynamic)
         // 2. Apply Cards (Dynamic)
         const modified = cardSystem.applyStats(base);
 
@@ -176,6 +174,8 @@ export class Player extends Phaser.GameObjects.Container {
         if (!this.coreShape) return;
         // Optimization: Don't redraw every frame, only on change? 
         // For now, Player.recalculateStats is only called on change, so this is fine.
+
+        this.coreShape.clear(); // Clear strictly here now
 
         // We need a separate container for Loot if we want it "on back"?
         // Just cheat and draw rectangles in coreShape for now
@@ -209,6 +209,9 @@ export class Player extends Phaser.GameObjects.Container {
             this.zVelocity -= 0.8;
             if (this.z < 0) { this.z = 0; this.zVelocity = 0; }
         }
+
+        // Update Sprite Y for jump effect (and other attached visuals)
+        this.sprite.y = -this.z;
         this.coreShape.y = -this.z;
 
         // Emitter

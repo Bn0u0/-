@@ -102,6 +102,39 @@ export class MainScene extends Phaser.Scene {
         this.cameras.main.setBackgroundColor(COLORS.bg);
         this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
 
+        // --- ASSET GENERATION (FALLBACK) ---
+        // Since external asset generation failed, we generate textures at runtime.
+        if (!this.textures.exists('flare')) {
+            const g = this.make.graphics({ x: 0, y: 0 });
+            g.fillStyle(0xFFD700, 1);
+            g.fillCircle(16, 16, 16);
+            g.generateTexture('flare', 32, 32);
+        }
+
+        const classes = ['BLADE', 'WEAVER', 'IMPACT', 'PRISM', 'PHANTOM'];
+        const colors: Record<string, number> = {
+            'BLADE': 0xFFD700, 'WEAVER': 0x00FFFF, 'IMPACT': 0xFF4400,
+            'PRISM': 0xFF00FF, 'PHANTOM': 0x00FF00
+        };
+
+        classes.forEach(c => {
+            const key = `hero_${c.toLowerCase()}`;
+            if (!this.textures.exists(key)) {
+                const g = this.make.graphics({ x: 0, y: 0 });
+
+                // Base Body
+                g.fillStyle(colors[c], 1);
+                g.fillCircle(32, 32, 24);
+
+                // Detail (Direction Indicator)
+                g.fillStyle(0xFFFFFF, 0.8);
+                g.fillTriangle(32, 10, 50, 40, 14, 40);
+
+                g.generateTexture(key, 64, 64);
+            }
+        });
+        // -----------------------------------
+
         // Background handled by TerrainManager
 
         this.graphics = this.add.graphics();
@@ -150,38 +183,46 @@ export class MainScene extends Phaser.Scene {
             this.awardScore(score);
             this.lootService.trySpawnLoot(enemy.x, enemy.y);
 
-            // TASK_STITCH_003: XP Orbs Visuals
-            const orbCount = Phaser.Math.Between(1, 3);
+            // TASK_STITCH_003: XP Orbs Visuals (Revised)
+            // Use 'flare' texture and additive blending for glow
+            const orbCount = Phaser.Math.Between(3, 5);
             for (let i = 0; i < orbCount; i++) {
-                // Yellow glowing orb
-                const orb = this.add.circle(enemy.x, enemy.y, 4, 0xFFFF00).setDepth(120);
+                const orb = this.add.sprite(enemy.x, enemy.y, 'flare');
+                orb.setScale(0.5);
+                orb.setTint(0xFFFF00); // Gold
+                orb.setBlendMode(Phaser.BlendModes.ADD);
+                orb.setDepth(120);
+
                 this.physics.add.existing(orb);
                 const body = orb.body as Phaser.Physics.Arcade.Body;
 
-                // 1. Burst Out
-                body.setVelocity(Phaser.Math.Between(-150, 150), Phaser.Math.Between(-150, 150));
-                body.setDrag(200);
+                // 1. Burst Out (Explocive)
+                const angle = Phaser.Math.Between(0, 360);
+                const speed = Phaser.Math.Between(200, 400);
+                body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+                body.setDrag(800); // Quick slow down
 
                 // 2. Magnet to Player after delay
-                this.time.delayedCall(500 + i * 100, () => {
-                    if (!orb.scene) return; // Destroyed?
+                this.time.delayedCall(400 + i * 50, () => {
+                    if (!orb.scene) return;
 
-                    // Simple Magnet Update Loop
+                    // Tween to player instead of physics for smoother "Zoom"
                     const magnetEvent = this.time.addEvent({
-                        delay: 50,
+                        delay: 16,
                         loop: true,
                         callback: () => {
-                            if (!this.myUnit || !orb.scene) { magnetEvent.remove(); return; }
+                            if (!this.myUnit || !orb.scene) { magnetEvent.remove(); if (orb.scene) orb.destroy(); return; }
 
-                            this.physics.moveToObject(orb, this.myUnit, 600); // High speed
+                            this.physics.moveToObject(orb, this.myUnit, 900);
 
-                            // Check distance for "Collection"
+                            // Check distance
                             const dist = Phaser.Math.Distance.Between(orb.x, orb.y, this.myUnit.x, this.myUnit.y);
-                            if (dist < 30) {
-                                // Collected!
+                            if (dist < 50) {
+                                // Collected
                                 orb.destroy();
                                 magnetEvent.remove();
-                                // Optional: Float text or flash
+                                // Add XP logic
+                                persistence.addXp(10); // 10 XP per orb
                             }
                         }
                     });

@@ -99,7 +99,11 @@ const App: React.FC = () => {
             {/* State: HIDEOUT */}
             {appState === 'HIDEOUT' && (
                 <div className="absolute inset-0 z-20 bg-[var(--hld-bg)]">
-                    <Hideout profile={profile} onDeploy={handleDeploy} />
+                    <Hideout
+                        profile={profile}
+                        onDeploy={handleDeploy}
+                        onBack={() => setAppState('MAIN_MENU')}
+                    />
                 </div>
             )}
 

@@ -48,7 +48,7 @@ export class PlayerFactory {
         const config = CLASSES[classId] || CLASSES.BLADE;
 
         const player = new Player(scene, x, y, id, isLocal);
-        player.configure(config);
+        player.configure(config, classId);
         return player;
     }
 }

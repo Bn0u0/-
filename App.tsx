@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 import { PhaserGame } from './game/PhaserGame';
 import { GameOverlay } from './components/GameOverlay';
+import { VirtualJoystick } from './components/VirtualJoystick';
 import { Hideout } from './components/Hideout';
 import { BootScreen } from './components/BootScreen';
 import { MainMenu } from './components/MainMenu';
@@ -105,7 +106,24 @@ const App: React.FC = () => {
                 style={{ visibility: appState === 'COMBAT' ? 'visible' : 'hidden' }}
             >
                 <PhaserGame />
-                {appState === 'COMBAT' && <GameOverlay />}
+                {appState === 'COMBAT' && (
+                    <>
+                        <GameOverlay />
+                        <div className="absolute inset-0 z-50 pointer-events-none data-[joystick]:pointer-events-auto">
+                            {/* Joystick Layer - needs to be high z-index but allow clicks through to GameOverlay if needed? */}
+                            {/* Actually Joystick is standard HTML over canvas. */}
+                            <VirtualJoystick
+                                onMove={(x, y) => EventBus.emit('JOYSTICK_MOVE', { x, y })}
+                                onAim={(x, y, firing) => { /* Auto-aim handling */ }}
+                                onSkill={(skill) => {
+                                    if (skill === 'DASH') EventBus.emit('TRIGGER_SKILL', 'dash');
+                                    if (skill === 'Q') EventBus.emit('TRIGGER_SKILL', 'skill1');
+                                    if (skill === 'E') EventBus.emit('TRIGGER_SKILL', 'skill2');
+                                }}
+                            />
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* State: TUTORIAL DEBRIEF (Rookie End) */}

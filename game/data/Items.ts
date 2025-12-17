@@ -2,11 +2,14 @@ export enum ItemType {
     CORE = 'CORE',       // HP / Defense / Passive
     DRIVE = 'DRIVE',     // Speed / Utility / CDR
     PROTOCOL = 'PROTOCOL', // Attack / Crit / Special
-    MATERIAL = 'MATERIAL' // Crafting / Currency
+    MATERIAL = 'MATERIAL', // Crafting / Currency
+    ARTIFACT = 'ARTIFACT', // Special
+    SCRAP = 'SCRAP' // Junk? Or is SCRAP MATERIAL?
 }
 
 export enum ItemRarity {
     COMMON = 'COMMON',
+    UNCOMMON = 'UNCOMMON', // Added missing rarity
     RARE = 'RARE',
     EPIC = 'EPIC',
     LEGENDARY = 'LEGENDARY',
@@ -46,6 +49,7 @@ export interface InventoryItem {
 
 const RARITY_CONFIG: Record<ItemRarity, { color: string, mult: number }> = {
     [ItemRarity.COMMON]: { color: '#ffffff', mult: 1.0 },
+    [ItemRarity.UNCOMMON]: { color: '#00ff00', mult: 1.25 }, // Green
     [ItemRarity.RARE]: { color: '#00ffff', mult: 1.5 },
     [ItemRarity.EPIC]: { color: '#ff00ff', mult: 2.5 },
     [ItemRarity.LEGENDARY]: { color: '#ffd700', mult: 4.0 },

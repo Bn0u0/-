@@ -87,7 +87,7 @@ export class CombatManager {
                     if (!p.shielded) {
                         onPlayerDamaged(10);
                     }
-                    enemy.kill();
+                    enemy.die();
                 }
             });
         });

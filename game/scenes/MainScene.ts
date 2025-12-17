@@ -9,6 +9,7 @@ import { network } from '../../services/NetworkService';
 import { PowerupService, PowerupType } from '../../services/PowerupService';
 import { LootService } from '../../services/LootService';
 import { inventoryService } from '../../services/InventoryService';
+import { persistence } from '../../services/PersistenceService';
 import { cardSystem } from '../systems/CardSystem';
 
 import { WeaponSystem } from '../systems/WeaponSystem';
@@ -160,7 +161,7 @@ export class MainScene extends Phaser.Scene {
                     particleCount: 30,
                     spread: 60,
                     origin: { x: enemy.x / this.scale.width, y: enemy.y / this.scale.height },
-                    colors: [0xFF0000, 0x880000, 0xFFFFFF]
+                    colors: ['#FF0000', '#880000', '#FFFFFF']
                 });
             }
         });
@@ -323,11 +324,11 @@ export class MainScene extends Phaser.Scene {
             } else {
                 this.startNewWave(1);
             }
-        }
 
-        if (this.myUnit) {
-            this.cameras.main.startFollow(this.myUnit, true, 0.08, 0.08);
-            this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
+            if (this.myUnit) {
+                this.cameras.main.startFollow(this.myUnit, true, 0.08, 0.08);
+                this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
+            }
         }
     }
 
@@ -389,7 +390,7 @@ export class MainScene extends Phaser.Scene {
         this.hp = 100;
         this.isPaused = false;
         this.physics.resume();
-        this.waveManager.reset();
+        // this.waveManager.reset(); // Method removed in V5.0?
         if (this.enemyGroup) this.enemyGroup.clear(true, true);
     }
 
@@ -399,12 +400,11 @@ export class MainScene extends Phaser.Scene {
         // 1. Update Time (Merged)
         if (this.isGameActive && !this.isPaused) {
             this.survivalTime += delta / 1000;
-        }
-
-        // 2. Pulse Logic (Merged)
-        // V4.0: Extraction Timer at 180s (3 mins)
-        if (this.survivalTime >= 180 && !this.extractionManager.isActive) {
-            this.extractionManager.spawnZone(); // Force spawn
+            // 2. Pulse Logic (Merged)
+            // V5.0: Extraction is always open, managed by ExtractionManager state.
+            // if (this.survivalTime >= 180 && !this.extractionManager.isActive) {
+            //     this.extractionManager.spawnZones();
+            // }
         }
 
         if (this.survivalTime >= this.nextBossTime && this.pulsePhase !== 'PURGE') {

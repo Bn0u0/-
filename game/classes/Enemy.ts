@@ -236,13 +236,15 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         this.rotation += 0.1;
     }
 
-    public takeDamage(amount: number) {
+    public takeDamage(amount: number): boolean {
         this.hp -= amount;
         this.graphics.alpha = 0.2;
         this.scene.tweens.add({ targets: this.graphics, alpha: 1, duration: 100 });
         if (this.hp <= 0) {
             this.die();
+            return true;
         }
+        return false;
     }
 
     public die() {

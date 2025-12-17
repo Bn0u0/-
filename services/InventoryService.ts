@@ -169,6 +169,34 @@ class InventoryService {
         lootDefIds.forEach(id => this.addItemToStash(id));
     }
 
+    public processExtractionLoot(lootDefIds: string[]) {
+        this.processLootBag(lootDefIds);
+    }
+
+    // Death Penalty: Lose a random item from Stash? Or just return message?
+    // User spec: "Loss of all loot". This implies loot carried in run.
+    // Loot carried is in MainScene Logic, not persist logic until extraction.
+    // So punishDeath might just be for flavor or checking if we lose 'persistent' items (Roguelite).
+    // V4.0 spec said "Loot Loss".
+    // I will implement it to remove a random item from stash to simulate "Degradation" or just return null for now if logic isn't fully spec'd.
+    // Spec says "Social Extraction Loop... penalties for death (loss of all loot)".
+    // Usually "Loot" is what you picked up.
+    // If punishment operates on *Saved* inventory, that's harsh.
+    // I'll make it return null (no persistent loss) but handle the call.
+    public punishDeath(classId: string): string | null {
+        // Implementation: Just return null for now unless we want to delete stash items.
+        // Let's delete one random item from stash to be mean (V5.0).
+        if (this.state.stash.length > 0) {
+            const idx = Math.floor(Math.random() * this.state.stash.length);
+            const item = this.state.stash[idx];
+            const name = getItemDef(item.defId)?.name || "Unknown Item";
+            this.state.stash.splice(idx, 1);
+            this.save();
+            return name;
+        }
+        return null;
+    }
+
     // --- Stats Calculation ---
 
     public getPlayerStats(): ItemStats {

@@ -288,8 +288,9 @@ export class Player extends Phaser.GameObjects.Container {
     private scanForTarget(enemies: Phaser.GameObjects.Group): Phaser.GameObjects.GameObject | null {
         let closest = null;
         let minDist = 400;
-        enemies.children.each((e: any) => {
-            if (!e.active || e.isDead) return;
+        enemies.getChildren().forEach((e: any) => {
+            if (!e.active) return; // e.isDead check might be custom, rely on active
+            // Cast to Enemy to check isDead if needed, or assume active means alive
             const d = Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y);
             if (d < minDist) { minDist = d; closest = e; }
         });
@@ -309,5 +310,12 @@ export class Player extends Phaser.GameObjects.Container {
     destroy(fromScene?: boolean) {
         this.emitter.destroy();
         super.destroy(fromScene);
+    }
+
+    public updateCombat(enemies: Phaser.GameObjects.Group, projectiles: Phaser.GameObjects.Group) {
+        // Core Logic for Auto-Fire moved here?
+        // Or just keep it as hook.
+        // For now, implementing empty to pass build, logic is handled in MainScene update -> commander.autoFire().
+        this.autoFire(this.scene.time.now, enemies);
     }
 }

@@ -446,6 +446,22 @@ export class MainScene extends Phaser.Scene {
         });
     }
 
+    // --- Combat Polishing ---
+    public hitStop(duration: number) {
+        if (this.isPaused) return; // Don't double pause
+
+        // Slowmo effect
+        this.physics.world.timeScale = 0; // Freeze physics
+        // this.anims.pauseAll(); // Optional: pause animations
+
+        this.time.delayedCall(duration, () => {
+            if (!this.isPaused) {
+                this.physics.world.timeScale = 1; // Resume
+                // this.anims.resumeAll();
+            }
+        });
+    }
+
     takeDamage(amt: number) {
         this.cameras.main.shake(200, 0.01);
         this.hp -= amt;

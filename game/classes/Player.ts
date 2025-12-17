@@ -36,6 +36,7 @@ export class Player extends Phaser.GameObjects.Container {
 
     // Dash State
     public isDashing: boolean = false;
+    public isInvulnerable: boolean = false; // i-frame flag
     private dashTimer: number = 0;
     private dashCooldown: number = 0;
 
@@ -171,6 +172,7 @@ export class Player extends Phaser.GameObjects.Container {
             this.dashTimer -= dt;
             if (this.dashTimer <= 0) {
                 this.isDashing = false;
+                this.isInvulnerable = false;
                 body.drag.set(PHYSICS.drag);
                 body.maxVelocity.set(PHYSICS.maxVelocity);
             }
@@ -203,6 +205,7 @@ export class Player extends Phaser.GameObjects.Container {
         if (this.dashCooldown > 0) return;
 
         this.isDashing = true;
+        this.isInvulnerable = true;
         this.dashTimer = 200; // 200ms dash
         this.dashCooldown = 1500; // 1.5s cd
 

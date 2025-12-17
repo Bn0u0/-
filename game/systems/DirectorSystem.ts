@@ -32,17 +32,18 @@ export class DirectorSystem {
         this.scene = scene;
     }
 
+    public setDifficultyMultiplier(d: number) {
+        this.difficulty = d;
+    }
+
     update(time: number, delta: number) {
         const dt = delta / 1000; // Seconds
 
-        // 1. Difficulty Scaling (Linear over time)
-        // Increases by 0.1 every minute
-        this.difficulty += (0.1 / 60) * dt;
+        // 1. Difficulty Scaling handled by WaveManager now
+        // this.difficulty += (0.1 / 60) * dt;
 
-        // CHECK SUDDEN DEATH (180s = 3 minutes)
-        if (time > 180000 && !this.suddenDeathTriggered) {
-            this.triggerSuddenDeath();
-        }
+        // V5.0: Infinite Mode - No Sudden Death
+        // if (time > 180000 && !this.suddenDeathTriggered) { ... }
 
         // 2. State Machine
         this.phaseTimer -= delta;

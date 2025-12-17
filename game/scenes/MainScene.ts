@@ -6,18 +6,12 @@ import { COLORS, PHYSICS, FX } from '../../constants';
 import { EventBus } from '../../services/EventBus';
 import { UpgradeType } from '../../types';
 import { network } from '../../services/NetworkService';
-import { Vanguard } from '../classes/Vanguard';
-import { Weaver } from '../classes/Weaver';
-import { Spectre } from '../classes/Spectre';
-import { Bastion } from '../classes/Bastion';
-import { Catalyst } from '../classes/Catalyst';
-import { Projectile } from '../classes/Projectile';
 import { PowerupService, PowerupType } from '../../services/PowerupService';
 import { LootService } from '../../services/LootService';
 import { inventoryService } from '../../services/InventoryService';
-import { persistence } from '../../services/PersistenceService';
+import { cardSystem } from '../systems/CardSystem';
 
-// Managers
+import { WeaponSystem } from '../systems/WeaponSystem';
 import { WaveManager } from '../managers/WaveManager';
 import { ExtractionManager } from '../managers/ExtractionManager';
 import { CombatManager } from '../managers/CombatManager';
@@ -68,17 +62,17 @@ export class MainScene extends Phaser.Scene {
     private pulsePhase: 'SCAVENGE' | 'WARNING' | 'PURGE' = 'SCAVENGE';
 
     // Services & Managers
+    public weaponSystem!: WeaponSystem;
     private powerupService!: PowerupService;
     private lootService!: LootService;
     private waveManager!: WaveManager;
     private extractionManager!: ExtractionManager;
     private combatManager!: CombatManager;
     public terrainManager!: TerrainManager;
-    private playerFactory!: PlayerFactory;
     private inputSystem!: InputSystem;
 
     // Player Choice
-    private myClass: string = 'Vanguard';
+    private myClass: string = 'BLADE'; // Default to new class ID
 
     private doubleScoreActive: boolean = false;
 
@@ -97,11 +91,7 @@ export class MainScene extends Phaser.Scene {
     preload() {
         this.load.image('floor', 'assets/textures/floor_scifi.png');
         this.load.image('wall', 'assets/textures/wall_tech.png');
-        this.load.image('hero_vanguard', 'assets/sprites/hero_vanguard.png');
-        this.load.image('hero_spectre', 'assets/sprites/hero_spectre.png');
-        this.load.image('hero_bastion', 'assets/sprites/hero_bastion.png');
-        this.load.image('hero_weaver', 'assets/sprites/hero_weaver.png');
-        this.load.image('hero_catalyst', 'assets/sprites/hero_catalyst.png');
+        // Legacy sprites deleted. Using Vector Graphics for now via PlayerFactory/drawGuardian
     }
 
     create() {
@@ -114,39 +104,26 @@ export class MainScene extends Phaser.Scene {
         this.graphics.setDepth(50);
 
         // LIGHTING SETUP
-        const width = this.worldWidth;
-        const height = this.worldHeight;
-        // Optimization: Don't make RT full world size if huge. But we have camera pan.
-        // For MVP, RT matches Camera size and is pinned? Or World size?
-        // World size 4000x4000 is too big for RT usually.
-        // Better: RT matches Screen size, scrolls with camera = 0, but content moves?
-        // Let's stick to a big RT for simplicity or use a dark overlay Mesh?
-        // Easiest: A dark Rectangle covering the screen (ScrollFactor 0) with a mask?
-        // Phaser GeometryMask is expensive for many dynamic lights.
-
-        // Approach: RenderTexture covering the VIEWPORT (Screen).
-        // On update: Clear RT to Black (0.9 alpha).
-        // Draw "Light Circles" at relative positions of entities.
-        // Use blending to punch holes.
-
         this.lightLayer = this.add.renderTexture(0, 0, this.scale.width, this.scale.height);
         this.lightLayer.setScrollFactor(0);
 
         // Groups
         this.enemyGroup = this.add.group({ classType: Enemy, runChildUpdate: true });
-        this.projectileGroup = this.add.group({ classType: Projectile, runChildUpdate: true });
+        this.projectileGroup = this.add.group({ runChildUpdate: true }); // Generic group for now
 
         // Services
         this.powerupService = new PowerupService(this);
         this.lootService = new LootService(this);
 
         // Managers & Systems
+        this.weaponSystem = new WeaponSystem(this);
         this.inputSystem = new InputSystem(this);
         this.waveManager = new WaveManager(this, this.enemyGroup);
         this.extractionManager = new ExtractionManager(this, this.worldWidth, this.worldHeight);
         this.combatManager = new CombatManager(this);
         this.terrainManager = new TerrainManager(this);
-        this.playerFactory = new PlayerFactory(this);
+        // PlayerFactory is static now, no instance needed
+
 
         this.extractionManager.setTerrainManager(this.terrainManager);
 
@@ -163,9 +140,37 @@ export class MainScene extends Phaser.Scene {
         EventBus.on('START_MATCH', this.handleStartMatch, this);
         EventBus.on('NETWORK_PACKET', this.handleNetworkPacket, this);
         EventBus.on('APPLY_UPGRADE', this.applyUpgrade, this);
-        EventBus.on('ENEMY_KILLED', (data: { score: number, x: number, y: number }) => {
-            this.awardScore(data.score);
-            this.lootService.trySpawnLoot(data.x, data.y);
+        EventBus.on('ENEMY_KILLED', (enemy: any) => {
+            // Fix: Enemy emits itself, so use enemy.value and enemy.x/y
+            const score = enemy.value || 10;
+            this.awardScore(score);
+            this.lootService.trySpawnLoot(enemy.x, enemy.y);
+
+            // V5.0 Boss Lockdown Logic
+            if (enemy.config?.id === 'BOSS_GOLEM') {
+                this.extractionManager.setLocked(false);
+                // Visual Toast
+                const txt = this.add.text(this.cameras.main.width / 2, 200, "BOSS DEFEATED - EXTRACTION OPEN", { fontSize: '40px', color: '#00FF00', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0);
+                this.tweens.add({ targets: txt, alpha: 0, duration: 4000, delay: 1000, onComplete: () => txt.destroy() });
+            }
+
+            // V4.0 Infinite Joy: Confetti Gore
+            if (cardSystem.getStack('confetti_gore') > 0) {
+                confetti({
+                    particleCount: 30,
+                    spread: 60,
+                    origin: { x: enemy.x / this.scale.width, y: enemy.y / this.scale.height },
+                    colors: [0xFF0000, 0x880000, 0xFFFFFF]
+                });
+            }
+        });
+
+        // V5.0 Boss Spawn
+        EventBus.on('BOSS_SPAWN', () => {
+            this.extractionManager.setLocked(true);
+            this.cameras.main.shake(500, 0.01);
+            const txt = this.add.text(this.cameras.main.width / 2, 200, "⚠️ BOSS DETECTED - EXTRACTION SEALED ⚠️", { fontSize: '32px', color: '#FF0000', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0);
+            this.tweens.add({ targets: txt, alpha: 0, duration: 5000, delay: 1000, onComplete: () => txt.destroy() });
         });
         EventBus.on('DIRECTOR_STATE_CHANGE', (data: any) => {
             // Show Toast
@@ -274,22 +279,19 @@ export class MainScene extends Phaser.Scene {
         if (this.drone) this.drone.destroy();
 
         if (this.currentMode === 'SINGLE') {
-            this.commander = this.playerFactory.createPlayer(this.myClass, 0, 0, 'COMMANDER', true);
-            this.drone = new Weaver(this, 200, 0, 'DRONE', false);
+            this.commander = PlayerFactory.create(this, 0, 0, this.myClass as any, 'COMMANDER', true);
+            this.drone = PlayerFactory.create(this, 200, 0, 'WEAVER', 'DRONE', false);
             this.myUnit = this.commander;
             this.otherUnit = this.drone;
         } else {
             const isHost = network.isHost;
-            // For Multiplayer, we need to know other player's class. 
-            // Phase 4 MVP: Defaults to Vanguard for remote, or sync it via Network Handshake (Not implemented yet).
-            // Let's assume Remote is Vanguard for now until we add handshake.
-
+            // For Multiplayer, default to BLADE if unknown
             if (isHost) {
-                this.commander = this.playerFactory.createPlayer(this.myClass, 0, 0, 'COMMANDER', true);
-                this.drone = new Vanguard(this, 200, 0, 'DRONE', false); // Remote
+                this.commander = PlayerFactory.create(this, 0, 0, this.myClass as any, 'COMMANDER', true);
+                this.drone = PlayerFactory.create(this, 200, 0, 'BLADE', 'DRONE', false); // Remote
             } else {
-                this.commander = new Vanguard(this, 0, 0, 'COMMANDER', false); // Remote
-                this.drone = this.playerFactory.createPlayer(this.myClass, 200, 0, 'DRONE', true);
+                this.commander = PlayerFactory.create(this, 0, 0, 'BLADE', 'COMMANDER', false); // Remote
+                this.drone = PlayerFactory.create(this, 200, 0, this.myClass as any, 'DRONE', true);
             }
 
             this.myUnit = isHost ? this.commander : this.drone;
@@ -304,7 +306,7 @@ export class MainScene extends Phaser.Scene {
 
     startNewWave(wave: number) {
         if (!this.commander) return;
-        this.waveManager.startWave(wave, { x: this.commander.x, y: this.commander.y });
+        this.waveManager.startWave(wave);
     }
 
     cleanup() {
@@ -343,6 +345,11 @@ export class MainScene extends Phaser.Scene {
         }
 
         // 2. Pulse Logic (Merged)
+        // V4.0: Extraction Timer at 180s (3 mins)
+        if (this.survivalTime >= 180 && !this.extractionManager.isActive) {
+            this.extractionManager.spawnZone(); // Force spawn
+        }
+
         if (this.survivalTime >= this.nextBossTime && this.pulsePhase !== 'PURGE') {
             this.triggerPurge();
         }
@@ -369,7 +376,9 @@ export class MainScene extends Phaser.Scene {
         // 3. Logic (Host/Single)
         if (this.currentMode === 'SINGLE' || network.isHost) {
             this.enemyGroup?.getChildren().forEach((child) => {
-                (child as Enemy).seekPlayer([this.commander!, this.drone!], 100);
+                if (child.active) {
+                    (child as Enemy).update(time, delta, this.commander!);
+                }
             });
             this.runCombatLogic();
             this.waveManager.update(time, delta);
@@ -424,6 +433,7 @@ export class MainScene extends Phaser.Scene {
         // Emit Persistence
         if (this.myUnit) {
             EventBus.emit('EXTRACTION_SUCCESS', this.myUnit.lootBag);
+            inventoryService.processLootBag(this.myUnit.lootBag.map(i => i.id)); // Save Loot
 
             // JUICE: Confetti Explosion
             const count = 200;
@@ -460,8 +470,8 @@ export class MainScene extends Phaser.Scene {
         if (this.commander) {
             this.inputSystem.processInput(this.input, this.cameras, this.commander, this.statsModifiers);
             // Auto-Fire (Stop & Shoot mechanic)
-            if (this.enemyGroup && this.projectileGroup) {
-                this.commander.autoFire(time, this.enemyGroup, this.projectileGroup);
+            if (this.enemyGroup) {
+                this.commander.autoFire(time, this.enemyGroup);
             }
         }
     }
@@ -529,7 +539,7 @@ export class MainScene extends Phaser.Scene {
             if (!def) return;
 
             // Handle Scrap (Instant Credit)
-            if (def.type === 'SCRAP') { // String check or import ItemType
+            if (def.type === 'MATERIAL') { // String check
                 inventoryService.addCredits(10); // 10 Credits per scrap
                 loot.destroy();
 
@@ -545,6 +555,7 @@ export class MainScene extends Phaser.Scene {
             if (player.lootBag.length < 5) {
                 player.lootBag.push(def);
                 loot.destroy();
+                player.recalculateStats(); // V4.0
                 this.events.emit('LOOT_PICKUP', def);
 
                 const txt = this.add.text(player.x, player.y - 50, `+${def.name}`, {
@@ -599,7 +610,38 @@ export class MainScene extends Phaser.Scene {
         this.xp = 0;
         this.xpToNextLevel = Math.floor(this.xpToNextLevel * 1.5);
         this.isPaused = true;
+        this.showDraftScreen(); // V4.0 UI
         EventBus.emit('LEVEL_UP', this.level);
+    }
+
+    showDraftScreen() {
+        const overlay = this.add.container(this.cameras.main.width / 2, this.cameras.main.height / 2);
+        overlay.setScrollFactor(0).setDepth(2000);
+
+        const bg = this.add.rectangle(0, 0, 800, 400, 0x000000, 0.9);
+        overlay.add(bg);
+
+        const choices = cardSystem.getRandomDraft(3);
+
+        choices.forEach((card, index) => {
+            const x = (index - 1) * 220;
+            const btn = this.add.rectangle(x, 0, 200, 300, 0x333333).setInteractive();
+            const title = this.add.text(x, -100, card.name, { fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5);
+            const desc = this.add.text(x, 0, card.description, { fontSize: '14px', align: 'center', wordWrap: { width: 180 } }).setOrigin(0.5);
+
+            btn.on('pointerover', () => btn.setFillStyle(0x555555));
+            btn.on('pointerout', () => btn.setFillStyle(0x333333));
+
+            btn.on('pointerdown', () => {
+                cardSystem.addCard(card.id);
+                this.myUnit?.recalculateStats();
+                overlay.destroy();
+                this.isPaused = false;
+                this.physics.resume();
+            });
+
+            overlay.add([btn, title, desc]);
+        });
     }
 
     applyUpgrade(type: UpgradeType) {

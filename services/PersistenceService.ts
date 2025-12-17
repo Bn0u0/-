@@ -8,8 +8,9 @@ export interface UserProfile {
         weapon: string; // 'Vanguard' etc
         artifact: string;
     };
-    unlocks: string[]; // 'Vanguard', 'HardMode', etc.
+    unlocks: ['Vanguard'],
     hasPlayedOnce: boolean;
+    lockedClass: string | null; // V4.0: One Life, One Class
 }
 
 const STORAGE_KEY = 'SYNAPSE_PROFILE_V2';
@@ -46,7 +47,8 @@ export class PersistenceService {
                 artifact: 'None'
             },
             unlocks: ['Vanguard'],
-            hasPlayedOnce: false
+            hasPlayedOnce: false,
+            lockedClass: null
         };
     }
 

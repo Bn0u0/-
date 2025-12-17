@@ -1,148 +1,168 @@
 import Phaser from 'phaser';
 import { EventBus } from '../../services/EventBus';
 import { Enemy } from '../classes/Enemy';
-import { EnemyFast } from '../classes/EnemyFast';
-import { EnemyTank } from '../classes/EnemyTank';
-import { EnemyBoss } from '../classes/EnemyBoss';
-import { EnemyCharger } from '../classes/EnemyCharger';
-import { EnemySentinel } from '../classes/EnemySentinel';
-import { EnemyPhalanx } from '../classes/EnemyPhalanx';
-import { EnemyDefragmenter } from '../classes/EnemyDefragmenter';
+import { EnemyFactory } from '../factories/EnemyFactory';
 import { ObjectPool } from '../core/ObjectPool';
 import { DirectorSystem } from '../systems/DirectorSystem';
-
-export type WaveState = 'PREPARING' | 'SPAWNING' | 'COMBAT' | 'COMPLETE';
 
 export class WaveManager {
     private scene: Phaser.Scene;
     private enemyGroup: Phaser.GameObjects.Group;
-    private pools: Map<string, ObjectPool<Enemy>>;
+    private pool: ObjectPool<Enemy>;
 
     public wave: number = 1;
-    public waveState: WaveState = 'SPAWNING';
+    public waveState: 'SPAWNING' | 'COMBAT' | 'COMPLETE' = 'SPAWNING';
     private spawnTimer: Phaser.Time.TimerEvent | null = null;
-
-    // Director
     private director: DirectorSystem;
+
+    // Weighted Spawn Tables per Wave Range
+    // [EnemyID, Weight]
+    private spawnTables: { [range: string]: [string, number][] } = {
+        '1-3': [['JELLY', 10], ['WISP', 5], ['CHARGER', 1]],
+        '4-6': [['JELLY', 5], ['TRI_DART', 5], ['CHARGER', 3], ['SENTINEL', 1]],
+        '7-9': [['TRI_DART', 8], ['CRAB', 5], ['SPLITTER', 3], ['GOLEM', 1]],
+        '10+': [['PHANTOM', 5], ['GOLEM', 4], ['LOOT_BUNNY', 1], ['SPLITTER', 5]]
+    };
 
     constructor(scene: Phaser.Scene, enemyGroup: Phaser.GameObjects.Group) {
         this.scene = scene;
         this.enemyGroup = enemyGroup;
-        this.pools = new Map();
 
-        // Initialize Pools
-        this.createPool('fast', () => new EnemyFast(scene, 0, 0));
-        this.createPool('tank', () => new EnemyTank(scene, 0, 0));
-        this.createPool('scout', () => new EnemyFast(scene, 0, 0)); // Scout = Fast for now
-        this.createPool('vanguard', () => new EnemyCharger(scene, 0, 0)); // Map 'vanguard' to Charger or whatever
-
-        // New Anomalies
-        this.createPool('sentinel', () => new EnemySentinel(scene, 0, 0));
-        this.createPool('phalanx', () => new EnemyPhalanx(scene, 0, 0));
-        this.createPool('boss', () => new EnemyDefragmenter(scene, 0, 0));
-
-        // Initialize Director
-        this.director = new DirectorSystem(scene);
-        this.director.onSpawnRequest = (type, cost) => this.trySpawnEnemy(type);
-    }
-
-    private createPool(type: string, factory: () => Enemy) {
-        this.pools.set(type, new ObjectPool<Enemy>(
+        // Single Generic Pool
+        this.pool = new ObjectPool<Enemy>(
             () => {
-                const enemy = factory();
+                const enemy = new Enemy(scene, 0, 0);
                 this.enemyGroup.add(enemy);
                 enemy.setActive(false).setVisible(false);
                 return enemy;
             },
-            10, 50 // Size
-        ));
+            50, 200 // Initial, Max
+        );
+
+        this.director = new DirectorSystem(scene);
+        this.director.onSpawnRequest = (type, cost) => this.trySpawnEnemy(type);
     }
 
-    public startWave(waveNumber: number, commanderPosition: { x: number, y: number }) {
+    public startWave(waveNumber: number) {
         this.wave = waveNumber;
-        EventBus.emit('WAVE_START', { wave: this.wave, isElite: false });
-    }
+        EventBus.emit('WAVE_START', { wave: this.wave });
 
-    private trySpawnEnemy(type: string): boolean {
-        // Resolve type alias if needed
-        let poolKey = type;
-        if (type === 'scout') poolKey = 'fast';
-
-        const pool = this.pools.get(poolKey);
-        if (!pool) {
-            console.warn(`No pool for enemy type: ${type}`);
-            return false;
-        }
-
-        const mainScene = this.scene as any;
-        let finalX = 0, finalY = 0;
-
-        if (mainScene.terrainManager) {
-            const spawnParams = mainScene.terrainManager.getRandomGroundTile();
-            if (spawnParams) {
-                finalX = spawnParams.x;
-                finalY = spawnParams.y;
-            } else {
-                return false;
-            }
-        } else {
-            return false;
-        }
-
-        const enemy = pool.get();
-        if (!enemy) return false;
-
-        enemy.init(finalX, finalY, type);
-
-        // Apply Difficulty
-        const diffMult = this.director.difficulty;
-        enemy.setDifficulty(diffMult, diffMult, type === 'boss');
-
-        if (!this.enemyGroup.contains(enemy)) this.enemyGroup.add(enemy);
-
-        return true;
+        // Start Spawning Loop handled by Director or Timer
+        // DirectorSystem usually drives the pacing
     }
 
     public update(time: number, delta: number) {
         this.director.update(time, delta);
 
-        // Check for Dead Enemies and Release
+        // V5.0: Infinite Scaling Difficulty
+        const minutes = time / 60000;
+        const difficulty = 1 + (minutes * 0.2); // +20% per minute
+        this.director.setDifficultyMultiplier(difficulty);
+
+        // V5.0: Random Boss Spawn (>150s)
+        if (time > 150000 && !this.bossActive) {
+            // 1% check per second (approx run every 60 frames)
+            if (Math.random() < 0.0002 * delta) {
+                this.spawnBoss();
+            }
+        }
+
+        // Return dead enemies to pool
         const children = this.enemyGroup.getChildren() as Enemy[];
         for (let i = children.length - 1; i >= 0; i--) {
             const enemy = children[i];
-
             if (!enemy.active) {
-                // Determine which pool it belongs to?
-                // Ideally enemy has a 'type' property or we deduce from constructor name.
-                // Simple hack: release to all pools until one accepts? 
-                // ObjectPool.release checks identity usually? 
-                // Our ObjectPool.release just pushes to stack. 
-                // IF we push Sentinel to Fast pool, next 'Fast' spawn is broken.
-
-                // We need to know the type.
-                // Let's check constructor name or store type on Enemy.
-                // For MVP, checking instance is reliable.
-
-                if (enemy instanceof EnemySentinel) this.pools.get('sentinel')?.release(enemy);
-                else if (enemy instanceof EnemyPhalanx) this.pools.get('phalanx')?.release(enemy);
-                else if (enemy instanceof EnemyDefragmenter) this.pools.get('boss')?.release(enemy);
-                else if (enemy instanceof EnemyBoss) this.pools.get('boss')?.release(enemy); // Fallback
-                else if (enemy instanceof EnemyTank) this.pools.get('tank')?.release(enemy);
-                else this.pools.get('fast')?.release(enemy); // Default
+                this.pool.release(enemy);
             }
         }
     }
 
-    public cleanup() {
-        if (this.spawnTimer) this.spawnTimer.remove(false);
-        this.enemyGroup.clear(true, true);
-        // Clear pools not strictly necessary if scene restarts
+    // Track Boss State
+    public bossActive: boolean = false;
+
+    private spawnBoss() {
+        this.bossActive = true;
+        EventBus.emit('BOSS_SPAWN');
+
+        // Spawn GOLEM as Boss
+        const config = EnemyFactory.get('GOLEM'); // Or dedicated Boss type
+        // Scale Boss Stats massively
+        const mainScene = this.scene as any;
+        const player = mainScene.commander;
+
+        const boss = this.pool.get();
+        if (boss && player) {
+            const angle = Math.random() * Math.PI * 2;
+            boss.setPosition(player.x + Math.cos(angle) * 400, player.y + Math.sin(angle) * 400);
+
+            // Boss Modifiers
+            config.stats.hp *= 5;
+            config.stats.radius *= 1.5;
+            config.id = 'BOSS_GOLEM'; // Mark as boss
+
+            boss.configure(config);
+            boss.onEnable();
+
+            // Listen for death to unlock
+            boss.once('destroy', () => {
+                this.bossActive = false;
+                // Don't emit here, let MainScene handle ENEMY_KILLED -> check if Boss
+            });
+        }
     }
 
-    public reset() {
-        this.wave = 1;
-        this.director.difficulty = 1.0;
-        this.director.credits = 0;
-        this.cleanup();
+    private trySpawnEnemy(requestedType?: string): boolean {
+        // Pick type based on Wave if not requested
+        const typeId = requestedType || this.pickRandomEnemyType();
+        const config = EnemyFactory.get(typeId);
+
+        // Position Logic (Simple Radial or Terrain based)
+        // Assume TerrainManager exists on Scene
+        const mainScene = this.scene as any;
+        let x = 0, y = 0;
+
+        if (mainScene.terrainManager) {
+            const ground = mainScene.terrainManager.getRandomGroundTile();
+            if (!ground) return false;
+            x = ground.x;
+            y = ground.y;
+        } else {
+            // Fallback: Circle around player
+            const player = mainScene.commander;
+            if (!player) return false;
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 600;
+            x = player.x + Math.cos(angle) * radius;
+            y = player.y + Math.sin(angle) * radius;
+        }
+
+        const enemy = this.pool.get();
+        if (!enemy) return false;
+
+        enemy.setPosition(x, y);
+        enemy.configure(config);
+        enemy.onEnable();
+
+        return true;
+    }
+
+    private pickRandomEnemyType(): string {
+        let table = this.spawnTables['10+'];
+        if (this.wave <= 3) table = this.spawnTables['1-3'];
+        else if (this.wave <= 6) table = this.spawnTables['4-6'];
+        else if (this.wave <= 9) table = this.spawnTables['7-9'];
+
+        const totalWeight = table.reduce((sum, item) => sum + item[1], 0);
+        let roll = Math.random() * totalWeight;
+
+        for (const [id, weight] of table) {
+            roll -= weight;
+            if (roll <= 0) return id;
+        }
+        return 'JELLY';
+    }
+
+    public cleanup() {
+        this.enemyGroup.clear(true, true);
     }
 }

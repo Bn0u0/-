@@ -2,52 +2,29 @@ import Phaser from 'phaser';
 import { Player } from './Player';
 import { COLORS } from '../../constants';
 import { IPoolable } from '../core/ObjectPool';
-import { EventBus } from '../../services/EventBus';
+import { EnemyConfig } from '../factories/EnemyFactory';
 
 export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
     public id: string;
     declare public body: Phaser.Physics.Arcade.Body;
     public isDead: boolean = false;
 
-    // Custom stats
-    protected hp: number = 1;
-    protected maxHp: number = 1;
-    protected moveSpeed: number = 100;
-    protected speed: number = 100;
-    protected damage: number = 10;
+    // Config & Stats
+    public config: EnemyConfig | null = null;
+    public hp: number = 10;
+    public maxHp: number = 10;
+    public speed: number = 100;
+    public damage: number = 10;
+    public value: number = 10;
 
-    declare public scene: Phaser.Scene;
-    declare public x: number;
-    declare public y: number;
-    declare public rotation: number;
-    declare public active: boolean;
-    declare public scaleX: number;
-    declare public scaleY: number;
+    // AI State
+    private aiState: 'IDLE' | 'CHASE' | 'WINDUP' | 'DASH' | 'RECOVER' = 'CHASE';
+    private aiTimer: number = 0;
+    private target: Player | null = null;
 
-    declare public add: (child: Phaser.GameObjects.GameObject | Phaser.GameObjects.GameObject[]) => this;
-    declare public setScale: (x: number, y?: number) => this;
-    declare public setRotation: (radians?: number) => this;
-    declare public destroy: (fromScene?: boolean) => void;
-    declare public setVisible: (value: boolean) => this;
-    declare public setActive: (value: boolean) => this;
-    declare public setBlendMode: (value: string | Phaser.BlendModes) => this;
-
+    // Visuals
     protected graphics: Phaser.GameObjects.Graphics;
     protected shadow: Phaser.GameObjects.Ellipse;
-
-    // Abstract-ish methods to be implemented or used by subclasses if needed
-    // But since this is a Container, we might delegate visual setting to children or graphics.
-    // However, subclasses like EnemyFast might use Sprites?
-    // The Refactor plan said Enemy extends Sprite?
-    // Step 1774 summary said: "Changed base class ... to Phaser.Physics.Arcade.Sprite".
-    // But current code says `extends Container` (Line 5 of Step 1843).
-    // If I change it to Sprite, it breaks children (Shadow/Graphics).
-    // Let's stick to Container for now if that's what it was, BUT `WaveManager` expects `enemy.setTint` etc.
-    // Containers don't have setTint. Children do.
-    // The previous refactor was messy.
-    // Let's implement proxy methods or fix the base class.
-    // Given the constraints and existing code structure (Graphics + Shadow inside), Container is better for "Complex Enemy".
-    // But Physics on Container is tricky in Phaser < 3.60? No, 3.60+ supports it.
 
     // 2.5D
     public z: number = 0;
@@ -57,28 +34,223 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         super(scene, x, y);
         this.id = Math.random().toString(36).substr(2, 9);
 
-        // 0. Shadow
+        // Shadow
         this.shadow = scene.add.ellipse(0, 0, 30, 10, 0x000000, 0.4);
         this.add(this.shadow);
 
-        // 1. Visuals: Rhombus
+        // Visuals
         this.graphics = scene.add.graphics();
-        this.drawShape(COLORS.secondary);
         this.add(this.graphics);
 
-        // Lift graphics slightly
-        this.graphics.y = -5;
-        this.setRotation(Math.PI / 4);
-
-        // 2. Physics
+        // Physics
         scene.add.existing(this);
-        scene.physics.add.existing(this); // Fix: use scene.physics.add.existing
-
+        scene.physics.add.existing(this);
         const body = this.body as Phaser.Physics.Arcade.Body;
         body.setCircle(12);
-        body.setCollideWorldBounds(true);
-        body.setBounce(0.5);
+        body.setBounce(0.5); // Soft collision between enemies
         body.setDrag(200);
+        body.setCollideWorldBounds(true);
+    }
+
+    configure(config: EnemyConfig) {
+        this.config = config;
+        this.hp = config.stats.hp;
+        this.maxHp = config.stats.hp;
+        this.speed = config.stats.speed;
+        this.damage = config.stats.damage;
+        this.value = config.stats.value;
+
+        // Reset AI
+        this.aiState = 'CHASE';
+        this.aiTimer = 0;
+
+        // Visuals
+        this.drawEnemy(config.stats.color, config.stats.radius);
+
+        // Physics Body Size
+        const body = this.body as Phaser.Physics.Arcade.Body;
+        body.setCircle(config.stats.radius);
+    }
+
+    drawEnemy(color: number, radius: number) {
+        this.graphics.clear();
+        this.graphics.fillStyle(color, 1);
+        this.graphics.lineStyle(2, 0xffffff, 0.8);
+
+        // Shape based on ID or just generic abstract shapes
+        switch (this.config?.id) {
+            case 'TRI_DART':
+                this.graphics.fillTriangle(-radius, radius, radius, radius, 0, -radius * 1.5);
+                break;
+            case 'CRAB':
+                this.graphics.fillRect(-radius, -radius / 2, radius * 2, radius);
+                break;
+            case 'SENTINEL':
+                this.graphics.strokeCircle(0, 0, radius);
+                this.graphics.fillCircle(0, 0, radius * 0.6);
+                break;
+            default:
+                // Diamond / Rhombus Standard
+                this.graphics.beginPath();
+                this.graphics.moveTo(0, -radius);
+                this.graphics.lineTo(radius, 0);
+                this.graphics.lineTo(0, radius);
+                this.graphics.lineTo(-radius, 0);
+                this.graphics.closePath();
+                this.graphics.fillPath();
+                this.graphics.strokePath();
+        }
+    }
+
+    // Called by MainScene update loop
+    update(time: number, delta: number, player: Player) {
+        if (this.isDead || !this.body) return;
+        if (!this.config) return;
+
+        this.target = player;
+        const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
+
+        // AI Behavior Switch
+        switch (this.config.ai.type) {
+            case 'CHASE':
+                this.behaviorChase(delta);
+                break;
+            case 'SWARM':
+                this.behaviorSwarm(delta, time);
+                break;
+            case 'DASH':
+                this.behaviorDash(delta, time, dist);
+                break;
+            case 'STRAFE':
+                this.behaviorStrafe(delta, time, dist);
+                break;
+            case 'FLEE':
+                this.behaviorFlee(delta, player);
+                break;
+            case 'STATIONARY':
+                this.body.setVelocity(0, 0);
+                this.rotation = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y) + Math.PI / 2;
+                break;
+            case 'ERRATIC':
+                this.behaviorErratic(delta, time);
+                break;
+        }
+
+        // Depth Sort
+        this.setDepth(this.y);
+    }
+
+    // --- Behaviors ---
+
+    private behaviorChase(delta: number) {
+        if (!this.target) return;
+        this.scene.physics.moveToObject(this, this.target, this.speed);
+        this.rotation = this.body.velocity.angle() + Math.PI / 2;
+    }
+
+    private behaviorSwarm(delta: number, time: number) {
+        if (!this.target) return;
+        const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y);
+        const wobble = Math.sin(time * 0.005 + (this.x % 10)) * 0.5; // Simple hash for wobble
+
+        const velocity = new Phaser.Math.Vector2();
+        velocity.setToPolar(angle + wobble, this.speed);
+
+        this.body.setVelocity(velocity.x, velocity.y);
+        this.rotation = velocity.angle() + Math.PI / 2;
+    }
+
+    private behaviorDash(delta: number, time: number, dist: number) {
+        if (!this.target) return;
+        const interval = this.config?.ai.interval || 2000;
+
+        switch (this.aiState) {
+            case 'CHASE':
+                this.behaviorChase(delta);
+                this.aiTimer += delta;
+                if (this.aiTimer > interval && dist < 300) {
+                    this.aiState = 'WINDUP';
+                    this.aiTimer = 0;
+                    this.body.setVelocity(0, 0);
+                    this.scene.tweens.add({ targets: this, scale: 1.3, duration: 400, yoyo: true });
+                }
+                break;
+            case 'WINDUP':
+                this.aiTimer += delta;
+                this.rotation = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y) + Math.PI / 2;
+                if (this.aiTimer > 500) {
+                    this.aiState = 'DASH';
+                    this.aiTimer = 0;
+                    this.scene.physics.moveToObject(this, this.target, this.speed * 3);
+                }
+                break;
+            case 'DASH':
+                this.aiTimer += delta;
+                if (this.aiTimer > 300) {
+                    this.aiState = 'RECOVER';
+                    this.aiTimer = 0;
+                    this.body.setVelocity(0, 0);
+                }
+                break;
+            case 'RECOVER':
+                this.aiTimer += delta;
+                if (this.aiTimer > 1000) {
+                    this.aiState = 'CHASE';
+                    this.aiTimer = 0;
+                }
+                break;
+        }
+    }
+
+    private behaviorStrafe(delta: number, time: number, dist: number) {
+        if (!this.target) return;
+        const range = this.config?.ai.range || 200;
+
+        const angleToPlayer = Phaser.Math.Angle.Between(this.target.x, this.target.y, this.x, this.y);
+        const newAngle = angleToPlayer + (this.speed * 0.02 * delta / range);
+
+        const targetX = this.target.x + Math.cos(newAngle) * range;
+        const targetY = this.target.y + Math.sin(newAngle) * range;
+
+        this.scene.physics.moveTo(this, targetX, targetY, this.speed);
+        this.rotation = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y) + Math.PI / 2;
+    }
+
+    private behaviorFlee(delta: number, player: Player) {
+        const angle = Phaser.Math.Angle.Between(player.x, player.y, this.x, this.y);
+        const velocity = new Phaser.Math.Vector2();
+        velocity.setToPolar(angle + Math.PI, this.speed); // Variable name was inconsistent
+        this.body.setVelocity(velocity.x, velocity.y);
+        this.rotation = velocity.angle() + Math.PI / 2;
+    }
+
+    private behaviorErratic(delta: number, time: number) {
+        this.aiTimer += delta;
+        if (this.aiTimer > 500) {
+            this.aiTimer = 0;
+            const angle = Math.random() * Math.PI * 2;
+            const velocity = new Phaser.Math.Vector2();
+            velocity.setToPolar(angle, this.speed);
+            this.body.setVelocity(velocity.x, velocity.y);
+        }
+        this.rotation += 0.1;
+    }
+
+    public takeDamage(amount: number) {
+        this.hp -= amount;
+        this.graphics.alpha = 0.2;
+        this.scene.tweens.add({ targets: this.graphics, alpha: 1, duration: 100 });
+        if (this.hp <= 0) {
+            this.die();
+        }
+    }
+
+    public die() {
+        this.isDead = true;
+        this.setActive(false);
+        this.setVisible(false);
+        this.body.enable = false;
+        (this.scene as any).events.emit('ENEMY_KILLED', this);
     }
 
     public onEnable() {
@@ -87,277 +259,13 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         this.isDead = false;
         this.body.enable = true;
         this.alpha = 1;
-        this.setScale(1);
-
-        // Spawn Tween
-        this.scene.tweens.add({
-            targets: this,
-            scale: { from: 0, to: 1 },
-            duration: 400,
-            ease: 'Back.out'
-        });
+        this.setScale(0);
+        this.scene.tweens.add({ targets: this, scaleX: 1, scaleY: 1, duration: 300, ease: 'Back.out' });
     }
 
     public onDisable() {
         this.setActive(false);
         this.setVisible(false);
-        if (this.body) this.body.enable = false;
-        this.scene.tweens.killTweensOf(this);
-    }
-
-    public init(x: number, y: number, type: string) {
-        this.setPosition(x, y);
-        this.configureType(type, 1);
-        this.onEnable();
-    }
-
-    public setDifficulty(speedMult: number, hpMult: number, isElite: boolean) {
-        this.hp *= hpMult;
-        this.maxHp = this.hp;
-        this.speed *= speedMult;
-        if (isElite) {
-            this.setScale(1.5);
-            this.hp *= 2;
-        }
-    }
-
-    private configureType(type: string, multiplier: number) {
-        // Reset
-        this.graphics.clear();
-        this.enemyVariant = type; // Store type for rendering
-
-        if (type === 'tank') {
-            // "Giant Geometric Golem"
-            this.drawGolem(0xffd700); // Gold
-            this.hp = 80 * multiplier;
-            this.speed = 40;
-            this.damage = 20;
-        } else if (type === 'boss') {
-            this.drawGolem(0xff77bc); // Boss Pink
-            this.hp = 500 * multiplier;
-            this.speed = 30;
-            this.damage = 50;
-            this.setScale(2);
-        } else if (type === 'charger') {
-            // "Bouncy Slime Block"
-            this.drawSlime(0x00ffff); // Cyan
-            this.hp = 30 * multiplier;
-            this.speed = 120;
-            this.damage = 15;
-        } else {
-            // Fast / Scout -> "Floating Neon Jellyfish"
-            this.drawJellyfish(0xff77bc); // Hot Pink
-            this.hp = 20 * multiplier;
-            this.speed = 90;
-            this.damage = 10;
-        }
-        this.maxHp = this.hp;
-    }
-
-    private enemyVariant: string = 'scout';
-
-    // 1. Jellyfish (Sentinel)
-    public drawJellyfish(color: number) {
-        this.graphics.fillStyle(color, 0.3);
-        // Head
-        this.graphics.fillCircle(0, -5, 12);
-        this.graphics.lineStyle(2, color, 1);
-        this.graphics.strokeCircle(0, -5, 12);
-        // Tentacles
-        this.graphics.beginPath();
-        this.graphics.moveTo(-5, 5); this.graphics.lineTo(-8, 15);
-        this.graphics.moveTo(0, 5); this.graphics.lineTo(0, 18);
-        this.graphics.moveTo(5, 5); this.graphics.lineTo(8, 15);
-        this.graphics.strokePath();
-    }
-
-    // 2. Slime (Charger)
-    public drawSlime(color: number) {
-        this.graphics.fillStyle(color, 0.4);
-        // Soft blob
-        this.graphics.fillRoundedRect(-12, -8, 24, 20, 8);
-        this.graphics.lineStyle(2, 0xffffff, 0.8);
-        this.graphics.strokeRoundedRect(-12, -8, 24, 20, 8);
-        // Eyes
-        this.graphics.fillStyle(0xffffff, 1);
-        this.graphics.fillCircle(-5, 0, 3);
-        this.graphics.fillCircle(5, 0, 3);
-    }
-
-    // 3. Golem (Tank)
-    public drawGolem(color: number) {
-        this.graphics.fillStyle(color, 1);
-        // Core Block
-        this.graphics.fillRoundedRect(-15, -15, 30, 30, 4);
-        // Hover Rings
-        this.graphics.lineStyle(2, 0xffffff, 0.5);
-        this.graphics.strokeCircle(0, 0, 22);
-    }
-
-    public drawShape(color: number) {
-        // Fallback or generic usage
-        this.drawJellyfish(color);
-    }
-
-    // Compat methods for WaveManager/subclasses
-    public setTint(color: number) { /* No-op or impement logic on graphics */ }
-    public clearTint() { /* No-op */ }
-    public setTexture(key: string) { /* No-op, we use graphics */ }
-    public setTintFill(color: number) {
-        // Flash effect
-        this.graphics.clear();
-        this.graphics.fillStyle(0xffffff, 1);
-        this.graphics.fillCircle(0, 0, 15); // Simple White flash
-    }
-
-    public update() {
-        if (!this.active || this.isDead) return;
-
-        // 2.5D Gravity
-        if (this.z > 0 || this.zVelocity !== 0) {
-            this.z += this.zVelocity;
-            this.zVelocity -= 0.8;
-            if (this.z < 0) {
-                this.z = 0;
-                this.zVelocity = 0;
-                // Bounce on landing
-                this.scene.tweens.add({
-                    targets: this,
-                    scaleX: 1.2,
-                    scaleY: 0.8,
-                    duration: 100,
-                    yoyo: true
-                });
-            }
-        }
-
-        // Jellyfish Hover Animation
-        if (this.enemyVariant === 'scout' || this.enemyVariant === 'jelly') {
-            this.z = 5 + Math.sin(this.scene.time.now / 300) * 3;
-        }
-
-        // Sync Visuals
-        this.graphics.y = -this.z;
-        if (this.shadow) {
-            this.shadow.setScale(1 - (this.z / 200));
-            this.shadow.setAlpha(0.4 - (this.z / 300));
-        }
-
-        this.setDepth(this.y);
-    }
-
-    public seekPlayer(targets: any[], range: number = 9999) {
-        if (!this.active || this.isDead) return;
-        if (!this.body) return;
-
-        let closest: any = null;
-        let dist = range;
-
-        for (const t of targets) {
-            if (!t || !t.active) continue;
-            const d = Phaser.Math.Distance.Between(this.x, this.y, t.x, t.y);
-            if (d < dist) {
-                dist = d;
-                closest = t;
-            }
-        }
-
-        if (closest) {
-            this.scene.physics.moveToObject(this, closest, this.speed);
-        }
-    }
-
-    public kill() {
-        this.die();
-    }
-
-    public takeDamage(amount: number, knockback?: Phaser.Math.Vector2): boolean {
-        if (this.isDead) return false;
-
-        this.hp -= amount;
-
-        // Visual Feedback (Flash)
-        this.setTintFill(0xffffff);
-        this.scene.time.delayedCall(50, () => {
-            if (this.active) {
-                this.graphics.clear();
-                // Restore logic
-                if (this.enemyVariant === 'tank' || this.enemyVariant === 'boss') this.drawGolem(this.enemyVariant === 'boss' ? 0xff77bc : 0xffd700);
-                else if (this.enemyVariant === 'charger') this.drawSlime(0x00ffff);
-                else this.drawJellyfish(0xff77bc);
-            }
-        });
-
-        // POP! Scale
-        this.scene.tweens.add({
-            targets: this,
-            scale: 1.3,
-            duration: 50,
-            yoyo: true,
-            ease: 'Back.out'
-        });
-
-        if (knockback && this.body) {
-            const body = this.body as Phaser.Physics.Arcade.Body;
-            body.velocity.x += knockback.x * 300;
-            body.velocity.y += knockback.y * 300;
-        }
-
-        if (this.hp <= 0) {
-            this.die();
-            return true;
-        }
-        return false;
-    }
-
-    // ... applyImpulseScale ...
-
-    private die() {
-        if (this.isDead) return;
-        this.isDead = true;
-        // Emit rich event for Score and Loot
-        EventBus.emit('ENEMY_KILLED', { score: 10, x: this.x, y: this.y });
-
-        // POP Effect
-        this.scene.tweens.add({
-            targets: this,
-            scaleX: 1.5,
-            scaleY: 1.5,
-            alpha: 0,
-            duration: 100,
-            yoyo: false,
-            onComplete: () => {
-                this.emitConfetti();
-                this.active = false;
-                if (this.body) this.body.enable = false;
-            }
-        });
-    }
-
-    emitConfetti() {
-        if (!this.scene.textures.exists('confetti')) {
-            const g = this.scene.make.graphics({ x: 0, y: 0 });
-            g.fillStyle(0xffffff, 1);
-            g.fillCircle(4, 4, 4);
-            g.generateTexture('confetti', 8, 8);
-        }
-
-        // Multicolored Confetti
-        const colors = [0x00FFFF, 0xFF77BC, 0xFFD700, 0xFFFFFF];
-
-        const emitter = this.scene.add.particles(this.x, this.y, 'confetti', {
-            speed: { min: 100, max: 250 },
-            angle: { min: 0, max: 360 },
-            scale: { start: 0.8, end: 0 },
-            lifespan: 600,
-            quantity: 12,
-            gravityY: 200, // Gravity for falling paper feel
-            tint: colors,
-            blendMode: 'NORMAL', // Opaque for paper look
-            emitting: false
-        });
-
-        emitter.explode(12);
-        this.scene.time.delayedCall(1000, () => emitter.destroy());
+        this.body.enable = false;
     }
 }

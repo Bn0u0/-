@@ -1,218 +1,156 @@
 export enum ItemType {
-    WEAPON = 'WEAPON',
-    ARMOR = 'ARMOR',
-    ARTIFACT = 'ARTIFACT',
-    SCRAP = 'SCRAP'
+    CORE = 'CORE',       // HP / Defense / Passive
+    DRIVE = 'DRIVE',     // Speed / Utility / CDR
+    PROTOCOL = 'PROTOCOL', // Attack / Crit / Special
+    MATERIAL = 'MATERIAL' // Crafting / Currency
 }
 
 export enum ItemRarity {
     COMMON = 'COMMON',
-    UNCOMMON = 'UNCOMMON',
     RARE = 'RARE',
-    LEGENDARY = 'LEGENDARY'
-}
-
-export enum EquipmentSlot {
-    HEAD = 'HEAD',
-    BODY = 'BODY',
-    LEGS = 'LEGS',
-    FEET = 'FEET',
-    MAIN_HAND = 'MAIN_HAND',
-    OFF_HAND = 'OFF_HAND',
-    NONE = 'NONE' // For scrap/consumables
+    EPIC = 'EPIC',
+    LEGENDARY = 'LEGENDARY',
+    GLITCH = 'GLITCH' // Special anomaly tier
 }
 
 export interface ItemStats {
     hp?: number;
     shield?: number;
     atk?: number;
-    speed?: number; // percentage 0.1 = +10%
-    cooldown?: number; // percentage reduction
-    crit?: number; // percentage
+    speed?: number; // 0.1 = +10%
+    cdr?: number;   // 0.1 = 10% cooldown reduction
+    crit?: number;  // 5 = 5% chance
+    range?: number; // Range multiplier
+    luck?: number;  // Drop rate
 }
 
 export interface ItemDef {
-    id: string; // e.g. 'wpn_vanguard_sword_mk1'
+    id: string;
     name: string;
     type: ItemType;
-    slot: EquipmentSlot;
     rarity: ItemRarity;
-    classReq?: string[]; // If undefined, usable by all
-    tier: number; // 1-10
+    description: string;
     stats: ItemStats;
-    icon: string; // CSS emoji or eventual path
-    isTwoHanded?: boolean;
+    icon: string; // Emoji or asset key
+    color: string; // Hex string for UI
 }
 
 export interface InventoryItem {
-    id: string; // Unique Instance ID (UUID)
-    defId: string; // ref to ItemDef
+    id: string; // UUID
+    defId: string;
     acquiredAt: number;
     isNew?: boolean;
 }
 
-// --- GENERATION LOGIC ---
+// --- CONSTANTS ---
 
-const TIER_MULTIPLIER = 0.2; // +20% per Tier
-const BASE_HP = 50;   // Player Base HP
-const BASE_ATK = 10;  // Player Base ATK
-const TWO_HAND_MULT = 1.8; // 2H Weapons are 1.8x stronger
+const RARITY_CONFIG: Record<ItemRarity, { color: string, mult: number }> = {
+    [ItemRarity.COMMON]: { color: '#ffffff', mult: 1.0 },
+    [ItemRarity.RARE]: { color: '#00ffff', mult: 1.5 },
+    [ItemRarity.EPIC]: { color: '#ff00ff', mult: 2.5 },
+    [ItemRarity.LEGENDARY]: { color: '#ffd700', mult: 4.0 },
+    [ItemRarity.GLITCH]: { color: '#ff0000', mult: 6.66 }
+};
 
-// Base Templates
-interface ItemTemplate {
-    baseId: string;
-    namePattern: string;
-    type: ItemType;
-    slot: EquipmentSlot;
-    icon: string;
-    classReq?: string[];
-    baseStats: ItemStats;
-    isTwoHanded?: boolean;
-}
+// --- DEFINITIONS ---
 
-const TEMPLATES: ItemTemplate[] = [
-    // WEAPONS
+const BASE_DEFS: Partial<ItemDef>[] = [
+    // --- CORES (Defense) ---
     {
-        baseId: 'wpn_vanguard_sword', namePattern: '脈衝光刃',
-        type: ItemType.WEAPON, slot: EquipmentSlot.MAIN_HAND,
-        icon: '⚔️', classReq: ['Vanguard'],
-        baseStats: { atk: 10, speed: 0.05 }
+        id: 'core_fusion', name: 'Fusion Core', type: ItemType.CORE,
+        icon: '⚛️', description: 'Standard issue power unit.',
+        stats: { hp: 50, shield: 10 }
     },
     {
-        baseId: 'wpn_vanguard_shield', namePattern: '斥力圓盾',
-        type: ItemType.WEAPON, slot: EquipmentSlot.OFF_HAND,
-        icon: '🛡️', classReq: ['Vanguard'],
-        baseStats: { shield: 20, hp: 10 }
+        id: 'core_void', name: 'Void Core', type: ItemType.CORE,
+        icon: '⚫', description: 'Absorbs incoming energy.',
+        stats: { hp: 20, shield: 80 }
     },
     {
-        baseId: 'wpn_bastion_hammer', namePattern: '衝擊重錘',
-        type: ItemType.WEAPON, slot: EquipmentSlot.MAIN_HAND,
-        icon: '🔨', classReq: ['Bastion'],
-        baseStats: { atk: 10 }, // Will be multiplied by 2H logic
-        isTwoHanded: true
+        id: 'core_titan', name: 'Titan Core', type: ItemType.CORE,
+        icon: '🛡️', description: 'Massive durability increase.',
+        stats: { hp: 150 }
+    },
+
+    // --- DRIVES (Utility) ---
+    {
+        id: 'drive_kinetic', name: 'Kinetic Drive', type: ItemType.DRIVE,
+        icon: '⏩', description: 'Boosts reaction time.',
+        stats: { speed: 0.1, cdr: 0.05 }
     },
     {
-        baseId: 'wpn_bastion_wall', namePattern: '埃癸斯之壁',
-        type: ItemType.WEAPON, slot: EquipmentSlot.OFF_HAND,
-        icon: '🧱', classReq: ['Bastion'],
-        baseStats: { hp: 50, shield: 50 }
+        id: 'drive_warp', name: 'Warp Drive', type: ItemType.DRIVE,
+        icon: '🌀', description: 'Experimental phase engine.',
+        stats: { speed: 0.2, luck: 10 }
     },
     {
-        baseId: 'wpn_spectre_rifle', namePattern: '相位步槍',
-        type: ItemType.WEAPON, slot: EquipmentSlot.MAIN_HAND,
-        icon: '🔫', classReq: ['Spectre'],
-        baseStats: { atk: 12, cooldown: 0.05 }, // Slightly higher base, 2H
-        isTwoHanded: true
+        id: 'drive_chrono', name: 'Chrono Drive', type: ItemType.DRIVE,
+        icon: '⏳', description: 'Manipulates local flow.',
+        stats: { cdr: 0.20 }
     },
-    // ARMOR (Universal)
+
+    // --- PROTOCOLS (Offense) ---
     {
-        baseId: 'arm_head', namePattern: '戰術面甲',
-        type: ItemType.ARMOR, slot: EquipmentSlot.HEAD,
-        icon: '🥽', baseStats: { shield: 10 }
-    },
-    {
-        baseId: 'arm_body', namePattern: '複合護甲',
-        type: ItemType.ARMOR, slot: EquipmentSlot.BODY,
-        icon: '🦺', baseStats: { hp: 20 }
+        id: 'proto_strike', name: 'Strike Protocol', type: ItemType.PROTOCOL,
+        icon: '⚔️', description: 'Combat subroutines.',
+        stats: { atk: 15 }
     },
     {
-        baseId: 'arm_legs', namePattern: '外骨骼護腿',
-        type: ItemType.ARMOR, slot: EquipmentSlot.LEGS,
-        icon: '👖', baseStats: { speed: 0.02 }
+        id: 'proto_precision', name: 'Precision Protocol', type: ItemType.PROTOCOL,
+        icon: '🎯', description: 'Targeting enhancement.',
+        stats: { atk: 5, crit: 15 }
     },
     {
-        baseId: 'arm_feet', namePattern: '重力戰靴',
-        type: ItemType.ARMOR, slot: EquipmentSlot.FEET,
-        icon: '👢', baseStats: { speed: 0.05 }
-    },
+        id: 'proto_havoc', name: 'Havoc Protocol', type: ItemType.PROTOCOL,
+        icon: '💥', description: 'Unstable output.',
+        stats: { atk: 30, crit: 5 }
+    }
 ];
 
-const RARITY_FLAGS: Record<ItemRarity, { mult: number, color: string, prefix: string, bonusStat?: Partial<ItemStats> }> = {
-    [ItemRarity.COMMON]: { mult: 1.0, color: '⚪', prefix: '標準', bonusStat: {} },
-    [ItemRarity.UNCOMMON]: { mult: 1.2, color: '🟢', prefix: '強化', bonusStat: { crit: 5 } },
-    [ItemRarity.RARE]: { mult: 1.4, color: '🔵', prefix: '高階', bonusStat: { cooldown: 0.05 } },
-    [ItemRarity.LEGENDARY]: { mult: 1.6, color: '🟡', prefix: '菁英', bonusStat: { atk: 5, hp: 20 } }
-};
+// --- GENERATOR ---
 
 function generateDatabase(): Record<string, ItemDef> {
     const db: Record<string, ItemDef> = {};
 
-    // 1. Generate Gear (T1-T10)
-    TEMPLATES.forEach(tmpl => {
-        for (let tier = 1; tier <= 10; tier++) {
-            // For now, let's just generate COMMON items for basic progression data
-            // But to support the random drops, we should ideally support all rarities if needed. 
-            // For MVP, we stick to Common definitions in DB, and handle Rarity dynamic scaling...
-            // OR we pre-generate specific named items.
-            // Let's generate [Base Item] (Common) for each Tier.
+    BASE_DEFS.forEach(base => {
+        Object.values(ItemRarity).forEach(rarity => {
+            const config = RARITY_CONFIG[rarity];
+            const newId = `${base.id}_${rarity.toLowerCase()}`;
 
-            // To make "Rarity" real, we usually instanced items have a rarity modifier, 
-            // but our Def system has Rarity in the definition.
-            // So we will generate 'wpn_vanguard_sword_mk1' (Common)
-            // And maybe 'wpn_vanguard_sword_mk1_rare' etc if we want specific definitions.
-            // SIMPLIFICATION: We only generate COMMON defs here for the "Store" / Check.
-            // The `InventoryItem` instance might carry Rarity, OR we define definitions for all rarities.
-            // Let's define definitions for ALL rarities to be safe and explicit.
+            // Scale Stats
+            const newStats: ItemStats = {};
+            for (const key in base.stats) {
+                const val = base.stats[key as keyof ItemStats];
+                if (val) {
+                    // Start simple: Multiplier
+                    // Rounding for clean integers on flat stats
+                    const isFlat = ['hp', 'shield', 'atk', 'luck', 'crit'].includes(key);
+                    let newVal = val * config.mult;
+                    if (isFlat) newVal = Math.floor(newVal);
+                    else newVal = parseFloat(newVal.toFixed(2));
 
-            Object.values(ItemRarity).forEach(rarity => {
-                const rConfig = RARITY_FLAGS[rarity];
-
-                // Naming: "Standard Pulse Blade Mk.I"
-                // Id: wpn_vanguard_sword_mk1_common
-                const id = `${tmpl.baseId}_mk${tier}_${rarity.toLowerCase()}`;
-                const name = `${rarity === ItemRarity.COMMON ? '' : rConfig.prefix + ' '}${tmpl.namePattern} Mk.${tier}`;
-
-                // Stats Calculation
-                // Linear Growth: Base * (1 + (Tier-1)*0.2)
-                const tierScale = 1 + (tier - 1) * TIER_MULTIPLIER;
-                const finalMult = tierScale * rConfig.mult;
-
-                const stats: ItemStats = {};
-
-                // Apply Base Stats
-                if (tmpl.baseStats.atk) stats.atk = Math.floor(tmpl.baseStats.atk * finalMult * (tmpl.isTwoHanded ? TWO_HAND_MULT : 1));
-                if (tmpl.baseStats.hp) stats.hp = Math.floor(tmpl.baseStats.hp * finalMult);
-                if (tmpl.baseStats.shield) stats.shield = Math.floor(tmpl.baseStats.shield * finalMult);
-
-                // Percentage stats usually don't scale linearly with Tier to avoid 1000% speed.
-                // They scale slowly.
-                if (tmpl.baseStats.speed) stats.speed = tmpl.baseStats.speed + (tier * 0.005);
-                if (tmpl.baseStats.cooldown) stats.cooldown = tmpl.baseStats.cooldown; // Fixed usually
-                if (tmpl.baseStats.crit) stats.crit = tmpl.baseStats.crit;
-
-                // Rarity Bonus Stats
-                if (rConfig.bonusStat) {
-                    if (rConfig.bonusStat.crit) stats.crit = (stats.crit || 0) + rConfig.bonusStat.crit;
-                    if (rConfig.bonusStat.cooldown) stats.cooldown = (stats.cooldown || 0) + rConfig.bonusStat.cooldown;
-                    if (rConfig.bonusStat.atk) stats.atk = (stats.atk || 0) + rConfig.bonusStat.atk;
+                    newStats[key as keyof ItemStats] = newVal;
                 }
+            }
 
-                db[id] = {
-                    id,
-                    name,
-                    type: tmpl.type,
-                    slot: tmpl.slot,
-                    rarity: rarity,
-                    classReq: tmpl.classReq,
-                    tier,
-                    stats,
-                    icon: tmpl.icon,
-                    isTwoHanded: tmpl.isTwoHanded
-                };
-            });
-        }
+            db[newId] = {
+                id: newId,
+                name: `${base.name} [${rarity}]`, // e.g. Fusion Core [RARE]
+                type: base.type!,
+                rarity: rarity,
+                description: base.description!,
+                stats: newStats,
+                icon: base.icon!,
+                color: config.color
+            };
+        });
     });
 
-    // 2. Add Misc Items (Artifacts, Scrap) - Non Scaling for now
-    db['art_box_mk1'] = {
-        id: 'art_box_mk1', name: '加密數據箱',
-        type: ItemType.ARTIFACT, slot: EquipmentSlot.NONE,
-        rarity: ItemRarity.COMMON, tier: 1, stats: {}, icon: '📦'
-    };
-    db['m_scrap'] = {
-        id: 'm_scrap', name: '金屬廢料',
-        type: ItemType.SCRAP, slot: EquipmentSlot.NONE,
-        rarity: ItemRarity.COMMON, tier: 0, stats: {}, icon: '⚙️'
+    // Material
+    db['mat_data'] = {
+        id: 'mat_data', name: 'Encrypted Data', type: ItemType.MATERIAL,
+        rarity: ItemRarity.COMMON, description: 'Currency for upgrades.',
+        stats: {}, icon: '💾', color: '#ffffff'
     };
 
     return db;
@@ -220,15 +158,6 @@ function generateDatabase(): Record<string, ItemDef> {
 
 export const ITEM_DATABASE = generateDatabase();
 
-// Backwards compatibility helper for exact keys if referenced elsewhere manually
-// (The helper 'getItemDef' handles looking up by the ID string)
 export function getItemDef(defId: string): ItemDef | null {
-    // Attempt exact match
-    if (ITEM_DATABASE[defId]) return ITEM_DATABASE[defId];
-
-    // Fallback: The old code might ask for 'wpn_vanguard_sword_mk1' which implied Common.
-    // Try appending '_common'
-    if (ITEM_DATABASE[`${defId}_common`]) return ITEM_DATABASE[`${defId}_common`];
-
-    return null;
+    return ITEM_DATABASE[defId] || null;
 }

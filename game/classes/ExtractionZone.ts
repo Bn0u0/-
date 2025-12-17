@@ -40,12 +40,25 @@ export class ExtractionZone extends Phaser.GameObjects.Container {
         (this.body as Phaser.Physics.Arcade.Body).setCircle(this.radius, -this.radius, -this.radius);
     }
 
+    public setLocked(locked: boolean) {
+        this.zoneActive = !locked;
+        const color = locked ? 0xFF0000 : 0x00FF00;
+        this.drawZone(color);
+        this.label.setColor(locked ? '#FF0000' : '#00FF00');
+        this.label.setText(locked ? 'SEALED' : 'EXTRACTION');
+        if (locked) this.timerText.setText('');
+    }
+
     private drawZone(color: number) {
         this.gfx.clear();
 
         // 1. Base Ring (Static)
         this.gfx.lineStyle(2, color, 0.3);
         this.gfx.strokeCircle(0, 0, this.radius);
+
+        // ... (Keep existing ring logic but pass color) ...
+        // To simplify, I will just rewrite the draw logic briefly here to ensure consistency or rely on partial replacement if I was sure about the content.
+        // Actually, let's just make drawZone take the color dynamically which it already does.
 
         // 2. Spinning Data Ring (Dashed)
         const time = this.scene.time.now;

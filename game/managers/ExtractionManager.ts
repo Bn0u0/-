@@ -17,60 +17,35 @@ export class ExtractionManager {
     private terrainManager?: any;
 
     // State Machine
-    public state: ExtractionState = ExtractionState.CLOSED;
-    private timer: number = 0;
-
-    // Config (ms)
-    private readonly CYCLE_DURATION = 180000; // 3 mins total
-    private readonly WARNING_START = 150000;  // 2:30
-    private readonly OPEN_START = 170000;     // 2:50 (10s window)
+    public isLocked: boolean = false;
 
     constructor(scene: Phaser.Scene, worldWidth: number, worldHeight: number) {
         this.scene = scene;
         this.worldWidth = worldWidth;
         this.worldHeight = worldHeight;
         this.zones = scene.add.group({ classType: ExtractionZone, runChildUpdate: false });
+
+        // V5.0: Always Open
+        this.spawnZones();
     }
 
     public setTerrainManager(tm: any) {
         this.terrainManager = tm;
+        // Refresh zones if terrain loaded late? 
+        // For now, let's just stick to initial spawn.
     }
 
     public update(time: number, delta: number) {
-        this.timer += delta;
-
-        // Reset Cycle
-        if (this.timer >= this.CYCLE_DURATION) {
-            this.timer = 0;
-            this.setState(ExtractionState.CLOSED);
-            EventBus.emit('EXTRACTION_CYCLE_RESET');
-        }
-        // State Transitions
-        else if (this.state === ExtractionState.CLOSED && this.timer >= this.WARNING_START) {
-            this.setState(ExtractionState.WARNING);
-        }
-        else if (this.state === ExtractionState.WARNING && this.timer >= this.OPEN_START) {
-            this.setState(ExtractionState.OPEN);
-        }
-
-        // Visual Updates
-        if (this.state === ExtractionState.WARNING) {
-            // Flicker effect or ghost zone logic could go here
-        }
+        // No more timer cycle logic.
+        // Visual updates for locked state?
     }
 
-    private setState(newState: ExtractionState) {
-        if (this.state === newState) return;
-        this.state = newState;
-
-        console.log(`[Extraction] State: ${newState}`);
-        EventBus.emit('EXTRACTION_STATE_CHANGE', newState);
-
-        if (newState === ExtractionState.OPEN) {
-            this.spawnZones();
-        } else if (newState === ExtractionState.CLOSED) {
-            this.zones.clear(true, true);
-        }
+    public setLocked(locked: boolean) {
+        this.isLocked = locked;
+        this.zones.getChildren().forEach((z: any) => {
+            (z as ExtractionZone).setLocked(locked);
+        });
+        EventBus.emit('EXTRACTION_STATE_CHANGE', locked ? 'LOCKED' : 'OPEN');
     }
 
     public spawnZones() {
@@ -98,7 +73,7 @@ export class ExtractionManager {
     }
 
     public checkExtraction(player: Player): boolean {
-        if (this.state !== ExtractionState.OPEN) return false;
+        if (this.isLocked) return false;
 
         let extracted = false;
         this.zones.getChildren().forEach((z: any) => {

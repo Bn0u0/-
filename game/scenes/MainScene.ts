@@ -128,7 +128,7 @@ export class MainScene extends Phaser.Scene {
 
         this.extractionManager.setTerrainManager(this.terrainManager);
 
-        this.terrainManager.generateWorld(30, 30);
+        this.terrainManager.generateWorld(50, 50);
 
         // Check Projectile <-> Wall collision
         this.physics.add.collider(this.projectileGroup!, this.terrainManager.wallGroup, (proj: any) => {

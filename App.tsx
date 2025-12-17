@@ -10,7 +10,7 @@ import { persistence, UserProfile } from './services/PersistenceService';
 import { EventBus } from './services/EventBus';
 
 // Application State Machine
-type AppState = 'BOOT' | 'MAIN_MENU' | 'HIDEOUT' | 'COMBAT' | 'SUMMARY' | 'TUTORIAL_DEBRIEF';
+type AppState = 'BOOT' | 'MAIN_MENU' | 'HIDEOUT' | 'COMBAT' | 'GAME_OVER' | 'TUTORIAL_DEBRIEF';
 
 const App: React.FC = () => {
     const [appState, setAppState] = useState<AppState>('BOOT');
@@ -33,12 +33,12 @@ const App: React.FC = () => {
                 persistence.save({ hasPlayedOnce: true });
                 setAppState('TUTORIAL_DEBRIEF');
             } else {
-                setAppState('SUMMARY');
+                setAppState('GAME_OVER');
             }
         };
 
         const onExtraction = (loot: any[]) => {
-            setAppState('SUMMARY');
+            setAppState('GAME_OVER');
         };
 
         EventBus.on('GAME_OVER', onMissionEnd);
@@ -123,17 +123,41 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {/* State: SUMMARY (Veteran End) */}
-            {appState === 'SUMMARY' && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
-                    <div className="glass-card max-w-md w-full text-center border-[#FF0055]">
-                        <h2 className="text-4xl font-black text-[#FF0055] mb-4 tracking-widest">MISSION END</h2>
-                        <div className="mb-8 text-gray-300">
-                            SIGNAL LOST OR EXTRACTED
+            {/* State: GAME_OVER (Veteran End / Death) */}
+            {appState === 'GAME_OVER' && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in">
+                    <div className="relative flex flex-col items-center w-full max-w-lg p-8 border-y-4 border-[#FF0055] bg-[rgba(20,20,30,0.95)]">
+                        {/* Background Glitch Effect */}
+                        <div className="absolute inset-0 bg-[url('/assets/ui/noise.png')] opacity-10 pointer-events-none"></div>
+
+                        <h2 className="text-6xl md:text-7xl font-black text-[#FF0055] mb-2 tracking-tighter glitch-text" data-text="業績未達標">
+                            業績未達標
+                        </h2>
+                        <h3 className="text-xl md:text-2xl text-gray-500 font-mono tracking-[0.5em] mb-8">
+                            QUOTA FAILED
+                        </h3>
+
+                        <div className="flex flex-col gap-4 w-full">
+                            <button
+                                onClick={() => handleStartGame(profile.loadout.weapon)}
+                                className="group relative w-full py-4 bg-[#FF0055] hover:bg-[#ff3377] transition-all clip-path-polygon"
+                            >
+                                <span className="text-2xl font-black text-white italic tracking-widest group-hover:scale-105 block transition-transform">
+                                    再試一次 (RETRY)
+                                </span>
+                            </button>
+
+                            <button
+                                onClick={handleReturnToBase}
+                                className="w-full py-4 border border-gray-600 hover:border-white hover:bg-white/5 transition-all text-gray-400 hover:text-white tracking-widest font-bold"
+                            >
+                                回到總部 (RETURN TO HQ)
+                            </button>
                         </div>
-                        <button className="bubble-btn" onClick={handleReturnToBase}>
-                            RETURN TO BASE
-                        </button>
+
+                        <div className="mt-8 text-xs text-[#FF0055] font-mono opacity-60">
+                            ERR_CONNECTION_TERMINATED // 0xDEADBEEF
+                        </div>
                     </div>
                 </div>
             )}

@@ -23,13 +23,16 @@ export const BootScreen: React.FC<BootScreenProps> = ({ onStart }) => {
     }, []);
 
     return (
-        <div 
-            className="fixed inset-0 bg-black flex flex-col items-center justify-center z-[100] cursor-pointer"
-            onClick={() => loaded && onStart()}
+        <div
+            className="fixed inset-0 bg-black flex flex-col items-center justify-center z-[99999] cursor-pointer"
+            onClick={() => {
+                console.log("BootScreen Clicked. Loaded:", loaded);
+                if (loaded) onStart();
+            }}
         >
             <div className="text-6xl mb-8 animate-pulse">🐰</div>
             <div className="w-64 h-2 bg-gray-800 rounded-full overflow-hidden border border-gray-700">
-                <div 
+                <div
                     className="h-full bg-[#00FFFF] transition-all duration-75 ease-out shadow-[0_0_10px_#00FFFF]"
                     style={{ width: `${progress}%` }}
                 />

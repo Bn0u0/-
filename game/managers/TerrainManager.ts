@@ -155,36 +155,49 @@ export class TerrainManager {
         const g = this.scene.add.graphics();
         this.scene.add.existing(g);
 
+        // -- NEON POP PALETTE --
+        const COL_GROUND = 0x241e3b; // Midnight Blue / Deep Violet
+        const COL_HEX = 0x3d346b;    // Lighter Violet for Grid
+        const COL_WALL_SIDE = 0x110d21; // Darker Deep
+        const COL_WALL_TOP = 0x4b3d8f;  // Bright Violet
+        const COL_GLOW = 0x00FFFF;      // Cyan Glow
+
         if (type === TileType.GROUND) {
-            // Floor
-            g.fillStyle(0x1a1c24, 1);
+            // 1. Base Ground (Midnight Blue)
+            g.fillStyle(COL_GROUND, 1);
             g.fillRect(worldX, worldY, this.tileSize, this.tileSize);
 
-            // Tech Detail (Circuit Lines)
-            if (Math.random() < 0.2) {
-                g.lineStyle(2, 0x272933, 0.5);
-                g.strokeRect(worldX + 10, worldY + 10, this.tileSize - 20, this.tileSize - 20);
-            }
-            // Scorch Marks (10%)
-            if (Math.random() < 0.1) {
-                g.fillStyle(0x000000, 0.4);
-                g.fillCircle(worldX + 32, worldY + 32, 10 + Math.random() * 10);
+            // 2. Soft Hexagon Pattern (Grid)
+            // Draw a hexagon in the center
+            g.lineStyle(2, COL_HEX, 0.3);
+            const cx = worldX + this.tileSize / 2;
+            const cy = worldY + this.tileSize / 2;
+            const r = this.tileSize / 2.5;
+
+            this.drawHex(g, cx, cy, r);
+
+            // 3. Decorations (Glowing dots instead of scorch marks)
+            if (Math.random() < 0.15) {
+                g.fillStyle(COL_GLOW, 0.2);
+                g.fillCircle(worldX + Math.random() * 64, worldY + Math.random() * 64, 2);
             }
 
             g.setDepth(-10);
         } else if (type === TileType.WALL) {
-            // 2.5D Tech Block
-            // Side
-            g.fillStyle(0x0e0d16, 1);
-            g.fillRect(worldX, worldY + this.tileSize, this.tileSize, height); // Fake depth
+            // "Round" Obstacles / Crystal Rocks in 2.5D
+            // Using Rounded Rect for softer look
 
-            // Top
-            g.fillStyle(0x272933, 1);
-            g.fillRect(worldX, worldY - height, this.tileSize, this.tileSize + height);
+            // Side (Shadow)
+            g.fillStyle(COL_WALL_SIDE, 1);
+            g.fillRect(worldX, worldY + this.tileSize, this.tileSize, height);
 
-            // Highlight Edge
-            g.lineStyle(2, 0x54fcfc, 0.3); // Cyan glow edge
-            g.strokeRect(worldX, worldY - height, this.tileSize, this.tileSize + height);
+            // Top (Crystal)
+            g.fillStyle(COL_WALL_TOP, 1);
+            g.fillRoundedRect(worldX, worldY - height, this.tileSize, this.tileSize + height, 12);
+
+            // Inner Highlight (Crystal Facet)
+            g.fillStyle(0xffffff, 0.1);
+            g.fillRoundedRect(worldX + 10, worldY - height + 10, this.tileSize - 20, this.tileSize - 20, 8);
 
             // Physics Body
             const zone = this.scene.add.zone(worldX + 32, worldY + 32, this.tileSize, this.tileSize);
@@ -197,6 +210,19 @@ export class TerrainManager {
 
         tile.instance = g;
         this.tiles.set(key, tile);
+    }
+
+    private drawHex(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number) {
+        const points: { x: number, y: number }[] = [];
+        for (let i = 0; i < 6; i++) {
+            const rad = (60 * i) * (Math.PI / 180);
+            points.push({ x: x + r * Math.cos(rad), y: y + r * Math.sin(rad) });
+        }
+        g.beginPath();
+        g.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < 6; i++) g.lineTo(points[i].x, points[i].y);
+        g.closePath();
+        g.strokePath();
     }
 
     getRandomGroundTile(): { x: number, y: number } | null {

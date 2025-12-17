@@ -7,15 +7,13 @@ export class InputSystem {
     // Virtual Input State
     private virtualMove = { x: 0, y: 0 };
     private virtualAim = { x: 0, y: 0, isFiring: false };
-    // Virtual Input State
-    private virtualMove = { x: 0, y: 0 };
-    private virtualAim = { x: 0, y: 0, isFiring: false };
     private targetMovePosition: Phaser.Math.Vector2 | null = null;
 
     // Flick Logic
     private pointerDownPos = new Phaser.Math.Vector2();
     private pointerDownTime = 0;
-    private readonly FLICK_THRESHOLD = 0.15; // Seconds max for a flick
+    private wasDown = false;
+    private readonly FLICK_THRESHOLD = 0.20; // Seconds max for a flick
     private readonly FLICK_DIST_MIN = 30;    // Pixels min for a flick
 
     constructor(scene: Phaser.Scene) {
@@ -54,40 +52,32 @@ export class InputSystem {
         let moveX = this.virtualMove.x;
         let moveY = this.virtualMove.y;
 
-        // Mouse/Touch Logic
-        if (pointer.isDown) {
-            if (pointer.justDown) {
+        // Pointer Logic (Mouse/Touch)
+        const isDown = pointer.isDown;
+        const justDown = isDown && !this.wasDown;
+        const justUp = !isDown && this.wasDown;
+
+        if (isDown) {
+            if (justDown) {
                 this.pointerDownPos.set(pointer.x, pointer.y);
                 this.pointerDownTime = this.scene.time.now;
             }
 
-            // Standard Movement logic ...
+            // Standard Click-to-Move logic
+            // Only if no virtual joystick input
             if (moveX === 0 && moveY === 0) {
                 const worldPoint = pointer.positionToCamera(cameras.main) as Phaser.Math.Vector2;
                 this.targetMovePosition = new Phaser.Math.Vector2(worldPoint.x, worldPoint.y);
             }
-        } else if (pointer.justUp) {
+        }
+
+        if (justUp) {
             // Check for Flick
             const duration = (this.scene.time.now - this.pointerDownTime) / 1000;
             const dist = this.pointerDownPos.distance(pointer.position);
 
             if (duration < this.FLICK_THRESHOLD && dist > this.FLICK_DIST_MIN) {
-                // FLICK DETECTED!
-                // Calculate direction
-                const angle = Phaser.Math.Angle.Between(
-                    this.pointerDownPos.x, this.pointerDownPos.y,
-                    pointer.x, pointer.y
-                );
-
-                // Override movement with dash direction logic if needed, 
-                // but usually Player handles dash direction based on Move or Facing.
-                // Here we force player to face flick direction provided we update rotation?
-                // Actually, let's just trigger dash. The player class usually dashes in movement dir.
-                // We should momentarily force movement dir to flick dir?
-
-                // Better: Player.dash() uses current velocity. 
-                // So we need to ensure velocity is set.
-
+                // FLICK DETECTED -> DASH
                 player.dash();
 
                 // Visual Text
@@ -95,18 +85,35 @@ export class InputSystem {
                     x: player.x, y: player.y - 50,
                     text: "FLICK!", color: "#00FFFF"
                 });
+
+                // Clear target move so we don't walk back after dashing
+                this.targetMovePosition = null;
             }
         }
 
-        // Apply Click Movement
+        // Update State
+        this.wasDown = isDown;
+
+        // Apply Movement from Virtual Joystick Only
+        // Legacy "Click-to-Move" removed for Mobile Purity. 
+        // Movement should be driven by Virtual Joystick (to be implemented) or Flick Dash.
+        // Currently, Flick = Dash. We might need a Virtual Joystick for standard movement if required,
+        // but for now we rely on pure Dash mechanics or Auto-move?
+        // Wait, "Click-to-Move" is actually okay for mobile (Tap to Move), but WASD is not.
+        // Let's keep Tap-to-Move for fallback but remove WASD.
+
+        // Apply Click Movement (Tap-to-Move)
         if (this.targetMovePosition) {
             const dist = Phaser.Math.Distance.Between(player.x, player.y, this.targetMovePosition.x, this.targetMovePosition.y);
             if (dist < 10) {
                 this.targetMovePosition = null; // Arrived
             } else {
                 const angle = Math.atan2(this.targetMovePosition.y - player.y, this.targetMovePosition.x - player.x);
-                moveX = Math.cos(angle);
-                moveY = Math.sin(angle);
+                // Only move if not overridden by virtual joystick
+                if (moveX === 0 && moveY === 0) {
+                    moveX = Math.cos(angle);
+                    moveY = Math.sin(angle);
+                }
             }
         }
 
@@ -121,11 +128,6 @@ export class InputSystem {
             body.setAcceleration(0, 0);
         }
 
-        // Keyboard Skills
-        if (input.keyboard) {
-            if (Phaser.Input.Keyboard.JustDown(input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE))) player.dash();
-            if (Phaser.Input.Keyboard.JustDown(input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q))) player.triggerSkill1();
-            if (Phaser.Input.Keyboard.JustDown(input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E))) player.triggerSkill2();
-        }
+        // NO KEYBOARD SUPPORT - MOBILE ONLY
     }
 }

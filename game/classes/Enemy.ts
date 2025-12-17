@@ -124,21 +124,29 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
     private configureType(type: string, multiplier: number) {
         // Reset
         this.graphics.clear();
+        this.enemyVariant = type; // Store type for rendering
 
         if (type === 'tank') {
-            this.drawShape(0xffaa00);
+            // "Giant Geometric Golem"
+            this.drawGolem(0xffd700); // Gold
             this.hp = 80 * multiplier;
             this.speed = 40;
             this.damage = 20;
         } else if (type === 'boss') {
-            this.drawShape(0xff0000);
+            this.drawGolem(0xff77bc); // Boss Pink
             this.hp = 500 * multiplier;
             this.speed = 30;
             this.damage = 50;
             this.setScale(2);
+        } else if (type === 'charger') {
+            // "Bouncy Slime Block"
+            this.drawSlime(0x00ffff); // Cyan
+            this.hp = 30 * multiplier;
+            this.speed = 120;
+            this.damage = 15;
         } else {
-            // Fast / Scout
-            this.drawShape(COLORS.secondary);
+            // Fast / Scout -> "Floating Neon Jellyfish"
+            this.drawJellyfish(0xff77bc); // Hot Pink
             this.hp = 20 * multiplier;
             this.speed = 90;
             this.damage = 10;
@@ -146,11 +154,49 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         this.maxHp = this.hp;
     }
 
-    public drawShape(color: number) {
+    private enemyVariant: string = 'scout';
+
+    // 1. Jellyfish (Sentinel)
+    public drawJellyfish(color: number) {
+        this.graphics.fillStyle(color, 0.3);
+        // Head
+        this.graphics.fillCircle(0, -5, 12);
+        this.graphics.lineStyle(2, color, 1);
+        this.graphics.strokeCircle(0, -5, 12);
+        // Tentacles
+        this.graphics.beginPath();
+        this.graphics.moveTo(-5, 5); this.graphics.lineTo(-8, 15);
+        this.graphics.moveTo(0, 5); this.graphics.lineTo(0, 18);
+        this.graphics.moveTo(5, 5); this.graphics.lineTo(8, 15);
+        this.graphics.strokePath();
+    }
+
+    // 2. Slime (Charger)
+    public drawSlime(color: number) {
+        this.graphics.fillStyle(color, 0.4);
+        // Soft blob
+        this.graphics.fillRoundedRect(-12, -8, 24, 20, 8);
+        this.graphics.lineStyle(2, 0xffffff, 0.8);
+        this.graphics.strokeRoundedRect(-12, -8, 24, 20, 8);
+        // Eyes
+        this.graphics.fillStyle(0xffffff, 1);
+        this.graphics.fillCircle(-5, 0, 3);
+        this.graphics.fillCircle(5, 0, 3);
+    }
+
+    // 3. Golem (Tank)
+    public drawGolem(color: number) {
         this.graphics.fillStyle(color, 1);
-        this.graphics.lineStyle(2, 0xffffff, 1);
-        this.graphics.fillRect(-10, -10, 20, 20);
-        this.graphics.strokeRect(-10, -10, 20, 20);
+        // Core Block
+        this.graphics.fillRoundedRect(-15, -15, 30, 30, 4);
+        // Hover Rings
+        this.graphics.lineStyle(2, 0xffffff, 0.5);
+        this.graphics.strokeCircle(0, 0, 22);
+    }
+
+    public drawShape(color: number) {
+        // Fallback or generic usage
+        this.drawJellyfish(color);
     }
 
     // Compat methods for WaveManager/subclasses
@@ -160,7 +206,8 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
     public setTintFill(color: number) {
         // Flash effect
         this.graphics.clear();
-        this.drawShape(0xffffff);
+        this.graphics.fillStyle(0xffffff, 1);
+        this.graphics.fillCircle(0, 0, 15); // Simple White flash
     }
 
     public update() {
@@ -173,11 +220,24 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
             if (this.z < 0) {
                 this.z = 0;
                 this.zVelocity = 0;
+                // Bounce on landing
+                this.scene.tweens.add({
+                    targets: this,
+                    scaleX: 1.2,
+                    scaleY: 0.8,
+                    duration: 100,
+                    yoyo: true
+                });
             }
         }
 
+        // Jellyfish Hover Animation
+        if (this.enemyVariant === 'scout' || this.enemyVariant === 'jelly') {
+            this.z = 5 + Math.sin(this.scene.time.now / 300) * 3;
+        }
+
         // Sync Visuals
-        this.graphics.y = -this.z - 5;
+        this.graphics.y = -this.z;
         if (this.shadow) {
             this.shadow.setScale(1 - (this.z / 200));
             this.shadow.setAlpha(0.4 - (this.z / 300));
@@ -211,7 +271,6 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         this.die();
     }
 
-
     public takeDamage(amount: number, knockback?: Phaser.Math.Vector2): boolean {
         if (this.isDead) return false;
 
@@ -222,20 +281,27 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         this.scene.time.delayedCall(50, () => {
             if (this.active) {
                 this.graphics.clear();
-                // Restore color - sloppy but works for MVP
-                // Ideally store current color
-                this.drawShape(COLORS.secondary);
+                // Restore logic
+                if (this.enemyVariant === 'tank' || this.enemyVariant === 'boss') this.drawGolem(this.enemyVariant === 'boss' ? 0xff77bc : 0xffd700);
+                else if (this.enemyVariant === 'charger') this.drawSlime(0x00ffff);
+                else this.drawJellyfish(0xff77bc);
             }
         });
 
-        // Physical Feedback (Knockback)
+        // POP! Scale
+        this.scene.tweens.add({
+            targets: this,
+            scale: 1.3,
+            duration: 50,
+            yoyo: true,
+            ease: 'Back.out'
+        });
+
         if (knockback && this.body) {
             const body = this.body as Phaser.Physics.Arcade.Body;
             body.velocity.x += knockback.x * 300;
             body.velocity.y += knockback.y * 300;
         }
-
-        this.applyImpulseScale();
 
         if (this.hp <= 0) {
             this.die();
@@ -244,16 +310,7 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         return false;
     }
 
-    public applyImpulseScale() {
-        this.scene.tweens.add({
-            targets: this,
-            scaleX: 1.3,
-            scaleY: 0.7,
-            duration: 50,
-            yoyo: true,
-            ease: 'Sine.easeInOut'
-        });
-    }
+    // ... applyImpulseScale ...
 
     private die() {
         if (this.isDead) return;
@@ -261,47 +318,46 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         // Emit rich event for Score and Loot
         EventBus.emit('ENEMY_KILLED', { score: 10, x: this.x, y: this.y });
 
+        // POP Effect
         this.scene.tweens.add({
             targets: this,
-            scaleX: 1.3,
-            duration: 50,
+            scaleX: 1.5,
+            scaleY: 1.5,
+            alpha: 0,
+            duration: 100,
             yoyo: false,
             onComplete: () => {
-                this.emitDeathParticles();
-                this.scene.tweens.add({
-                    targets: this,
-                    scale: 0,
-                    duration: 100,
-                    onComplete: () => {
-                        this.active = false; // Soft release, manager will pool it
-                        // We do NOT destroy, we let pool recycle
-                        if (this.body) this.body.enable = false;
-                    }
-                });
+                this.emitConfetti();
+                this.active = false;
+                if (this.body) this.body.enable = false;
             }
         });
     }
 
-    emitDeathParticles() {
-        if (!this.scene.textures.exists('shard')) {
+    emitConfetti() {
+        if (!this.scene.textures.exists('confetti')) {
             const g = this.scene.make.graphics({ x: 0, y: 0 });
-            g.fillStyle(COLORS.secondary, 1);
-            g.fillTriangle(0, 0, 10, 0, 5, 10);
-            g.generateTexture('shard', 10, 10);
+            g.fillStyle(0xffffff, 1);
+            g.fillCircle(4, 4, 4);
+            g.generateTexture('confetti', 8, 8);
         }
 
-        const emitter = this.scene.add.particles(this.x, this.y, 'shard', {
-            speed: { min: 100, max: 200 },
+        // Multicolored Confetti
+        const colors = [0x00FFFF, 0xFF77BC, 0xFFD700, 0xFFFFFF];
+
+        const emitter = this.scene.add.particles(this.x, this.y, 'confetti', {
+            speed: { min: 100, max: 250 },
             angle: { min: 0, max: 360 },
-            scale: { start: 1, end: 0 },
-            lifespan: 400,
-            quantity: 6,
-            blendMode: 'ADD',
+            scale: { start: 0.8, end: 0 },
+            lifespan: 600,
+            quantity: 12,
+            gravityY: 200, // Gravity for falling paper feel
+            tint: colors,
+            blendMode: 'NORMAL', // Opaque for paper look
             emitting: false
         });
 
-        emitter.explode(6);
-        // Fix: emitter.destroy() might not exist in some versions or needs delay
-        this.scene.time.delayedCall(500, () => emitter.destroy());
+        emitter.explode(12);
+        this.scene.time.delayedCall(1000, () => emitter.destroy());
     }
 }

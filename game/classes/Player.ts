@@ -57,7 +57,7 @@ export class Player extends Phaser.GameObjects.Container {
         this.shadow.setDepth(5);
         this.add(this.shadow);
 
-        // 1. Particle Trail (The Wake)
+        // 1. Particle Trail (The Wake - Softened)
         if (!scene.textures.exists('flare')) {
             const graphics = scene.make.graphics({ x: 0, y: 0 });
             graphics.fillStyle(0xffffff, 1);
@@ -68,25 +68,25 @@ export class Player extends Phaser.GameObjects.Container {
         this.emitter = scene.add.particles(0, 0, 'flare', {
             speed: 10,
             scale: { start: 0.6, end: 0 },
-            alpha: { start: 0.6, end: 0 },
-            lifespan: FX.particles.lifespan,
+            alpha: { start: 0.5, end: 0 },
+            lifespan: 800, // Longer, floaty trails
             blendMode: 'ADD',
-            frequency: FX.particles.interval,
+            frequency: 50,
             follow: this,
-            tint: isLocal ? COLORS.primary : COLORS.secondary
+            tint: COLORS.primary
         });
         this.emitter.setDepth(-1);
 
-        // 2. Geometric Body (Hexagon)
+        // 2. The Guardian (Soft Round Body)
         this.coreShape = scene.add.graphics();
-        this.drawHexagon(isLocal ? COLORS.primary : COLORS.secondary);
+        this.drawGuardian(isLocal ? COLORS.primary : COLORS.secondary);
         this.add(this.coreShape);
 
-        // 3. Direction Indicator
+        // 3. Direction Indicator (Soft Triangle)
         if (isLocal) {
-            const arrow = scene.add.triangle(0, -22, 0, 0, 8, 12, -8, 12, 0xffffff);
+            const arrow = scene.add.triangle(0, -28, 0, 0, 6, 10, -6, 10, 0xffffff);
             arrow.setOrigin(0.5, 0.5);
-            arrow.setAlpha(0.6);
+            arrow.setAlpha(0.8);
             this.add(arrow);
         }
 
@@ -102,40 +102,22 @@ export class Player extends Phaser.GameObjects.Container {
         body.setCollideWorldBounds(false);
     }
 
-    drawHexagon(color: number) {
+    drawGuardian(color: number) {
         this.coreShape.clear();
 
-        // Outer Glow Ring
-        this.coreShape.lineStyle(2, color, 0.4);
-        this.coreShape.strokeCircle(0, 0, 24);
+        // Soft Glow
+        this.coreShape.fillStyle(color, 0.2);
+        this.coreShape.fillCircle(0, 0, 28);
 
-        // Inner Hexagon
-        this.coreShape.fillStyle(COLORS.bg, 1);
-        this.coreShape.lineStyle(2, 0xffffff, 1);
+        // Outer Ring
+        this.coreShape.lineStyle(3, color, 1);
+        this.coreShape.strokeCircle(0, 0, 20);
 
-        const radius = 12;
-        const points: { x: number, y: number }[] = [];
-        for (let i = 0; i < 6; i++) {
-            const angle_deg = 60 * i - 30;
-            const angle_rad = Math.PI / 180 * angle_deg;
-            points.push({
-                x: radius * Math.cos(angle_rad),
-                y: radius * Math.sin(angle_rad)
-            });
-        }
-
-        this.coreShape.beginPath();
-        this.coreShape.moveTo(points[0].x, points[0].y);
-        for (let i = 1; i < points.length; i++) {
-            this.coreShape.lineTo(points[i].x, points[i].y);
-        }
-        this.coreShape.closePath();
-        this.coreShape.fillPath();
-        this.coreShape.strokePath();
-
-        // Central Core
-        this.coreShape.fillStyle(color, 1);
-        this.coreShape.fillCircle(0, 0, 5);
+        // Inner Core (Pearl)
+        this.coreShape.fillStyle(0xffffff, 1);
+        this.coreShape.fillCircle(0, 0, 12);
+        this.coreShape.fillStyle(color, 0.5);
+        this.coreShape.fillCircle(0, 0, 8);
     }
 
     // Stats Container
@@ -150,28 +132,52 @@ export class Player extends Phaser.GameObjects.Container {
         const body = this.body as Phaser.Physics.Arcade.Body;
         const dt = 16.6;
 
-        // Cooldown Management (Apply CDR)
-        // 10% CDR means time passes 1.1x faster for cooldowns, or we reduce max?
-        // Let's effectively reduce cooldown time needed.
-        // Simplified: Cooldowns tick down normally. When SETTING cooldown, we multiply by (1 - cdr).
+        // ... Cooldowns ...
         for (const key in this.cooldowns) {
             if (this.cooldowns[key] > 0) {
                 this.cooldowns[key] -= dt;
             }
         }
 
-        // ... (Z Logic) ...
+        // Squash & Stretch Logic (Juice)
+        const speed = body.velocity.length();
+        const maxSpeed = body.maxVelocity.x || 500;
+
+        // Base bounce (Idle breathing)
+        let scaleX = 1 + Math.sin(this.scene.time.now / 300) * 0.05;
+        let scaleY = 1 + Math.cos(this.scene.time.now / 300) * 0.05;
+
+        // Movement Stretch
+        if (speed > 50) {
+            const stretchFactor = Math.min(speed / maxSpeed, 1) * 0.3; // Max 30% stretch
+            scaleY += stretchFactor; // Elongate visuals? Actually usually X stretch Y squash or vice versa based on direction
+            // Since we rotate the container, we can just stretch Y (forward axis)
+            scaleX -= stretchFactor * 0.5; // Conservation of volume
+        }
+
+        // Apply Scale
+        this.setScale(scaleX, scaleY);
+
+        // Z-Height Logic
         if (this.z > 0 || this.zVelocity !== 0) {
             this.z += this.zVelocity;
             this.zVelocity -= 0.8;
             if (this.z < 0) {
                 this.z = 0;
                 this.zVelocity = 0;
+                // Landing Squash
+                this.scene.tweens.add({
+                    targets: this,
+                    scaleX: 1.4,
+                    scaleY: 0.6,
+                    duration: 100,
+                    yoyo: true
+                });
             }
         }
         this.coreShape.y = -this.z;
         if (this.visualSprite) this.visualSprite.y = -this.z;
-        this.shadow.setScale(1 - (this.z / 200));
+        this.shadow.setScale((1 - (this.z / 200)) * scaleX); // Shadow matches squash
         this.shadow.setAlpha(0.4 - (this.z / 300));
 
         // Dash Logic
@@ -182,30 +188,19 @@ export class Player extends Phaser.GameObjects.Container {
                 this.isDashing = false;
                 this.isInvulnerable = false;
                 body.drag.set(PHYSICS.drag);
-                // Reset Max Velocity to Stats Speed
                 this.updateMaxSpeed();
             }
             return;
         }
 
-        // Apply Stats Speed to Max Velocity
-        // We do this continuously or just once? Continuously is safer for buffs.
         this.updateMaxSpeed();
 
-        // Visual: Breathing Pulse based on speed
-        const maxSpeed = body.maxVelocity.x || PHYSICS.maxVelocity; // Fallback
-        const speedRatio = body.velocity.length() / maxSpeed;
-        const scalePulse = 1 + Math.sin(this.scene.time.now / 200) * 0.05 + (speedRatio * 0.1);
-        this.setScale(scalePulse);
-
-        this.coreShape.rotation += 0.02 + (speedRatio * 0.1);
-        this.coreShape.y = -this.z;
-
-        // ... (Particles) ...
-        if (body.velocity.length() > 50) {
+        // Particles
+        if (speed > 50) {
             this.emitter.active = true;
-            const angle = this.rotation + Math.PI / 2;
-            this.emitter.followOffset.set(Math.cos(angle) * 15, Math.sin(angle) * 15);
+            // Particles trail from behind
+            const angle = this.rotation + Math.PI / 2; // Forward
+            this.emitter.followOffset.set(-Math.cos(angle) * 10, -Math.sin(angle) * 10);
         } else {
             this.emitter.active = false;
         }
@@ -214,27 +209,22 @@ export class Player extends Phaser.GameObjects.Container {
     private updateMaxSpeed() {
         const body = this.body as Phaser.Physics.Arcade.Body;
         if (!body) return;
-
-        // Base 200 + (Speed% * 200)
-        // items provide speed as e.g. 0.05 (5%)
         const base = PHYSICS.maxVelocity;
         const bonus = base * (this.stats.speed || 0);
-        const final = base + bonus;
-
-        body.setMaxVelocity(final);
+        body.setMaxVelocity(base + bonus);
     }
 
     public dash(direction?: Phaser.Math.Vector2) {
         if (this.dashCooldown > 0) return;
 
         // Calculate Cooldown with CDR
-        const baseCd = 1200; // Faster dash for flick combat
+        const baseCd = 1200;
         const cdr = Math.min(0.5, this.stats.cooldown || 0);
         const finalCd = baseCd * (1 - cdr);
 
         this.isDashing = true;
         this.isInvulnerable = true;
-        this.dashTimer = 250; // Slightly longer dash
+        this.dashTimer = 250;
         this.dashCooldown = finalCd;
 
         // Physics push
@@ -244,13 +234,12 @@ export class Player extends Phaser.GameObjects.Container {
         body.drag.set(0);
         body.maxVelocity.set(1200);
 
-        // Direction: Flick Vector or Current Rotation
+        // Direction
         let vx = 0;
         let vy = 0;
         if (direction && (direction.x !== 0 || direction.y !== 0)) {
             vx = direction.x;
             vy = direction.y;
-            // Snap rotation to dash
             this.rotation = Math.atan2(vy, vx) - Math.PI / 2;
         } else {
             const angle = this.rotation - Math.PI / 2;
@@ -259,18 +248,21 @@ export class Player extends Phaser.GameObjects.Container {
         }
 
         body.setVelocity(vx * speed, vy * speed);
-
         this.zVelocity = 12;
 
+        // JUICY DASH SQUASH
+        // Stretch long in direction of movement
         this.scene.tweens.add({
-            targets: this.coreShape,
-            scale: { from: 1.4, to: 1 },
-            duration: 250,
-            ease: 'Back.out'
+            targets: this,
+            scaleY: 1.6,
+            scaleX: 0.6,
+            duration: 150,
+            yoyo: true,
+            ease: 'Sine.easeInOut'
         });
 
-        // JUICE: Camera Shake?
-        this.scene.cameras.main.shake(100, 0.005);
+        // Camera Shake (Soft)
+        this.scene.cameras.main.shake(100, 0.002); // Reduced from 0.005
     }
 
     // Auto-Fire System (Stop & Shoot)

@@ -3,28 +3,71 @@ import { Player } from '../classes/Player';
 import { Enemy } from '../classes/Enemy';
 import { Projectile } from '../classes/Projectile';
 import { EventBus } from '../../services/EventBus';
+import { MainScene } from '../scenes/MainScene';
+import { ObjectPool } from '../core/ObjectPool';
 
 export class CombatManager {
-    private scene: Phaser.Scene;
+    private scene: MainScene;
+    private projectilePool: ObjectPool<Projectile>;
+    private projectiles: Phaser.GameObjects.Group;
 
-    constructor(scene: Phaser.Scene) {
+    constructor(scene: MainScene) {
         this.scene = scene;
+        this.projectiles = scene.physics.add.group({
+            classType: Projectile,
+            runChildUpdate: true
+        });
+
+        // Initialize Projectile Pool
+        this.projectilePool = new ObjectPool<Projectile>(
+            () => {
+                const p = new Projectile(scene);
+                this.projectiles.add(p); // Add to the group for physics and updates
+                return p;
+            },
+            50, // Initial pool size
+            200 // Max pool size
+        );
+    }
+
+    public spawnProjectile(x: number, y: number, angle: number, ownerId: string, damage: number) {
+        const color = ownerId === 'player' ? 0x00ffff : 0xff0000;
+        const speed = 600;
+        const duration = 2000;
+
+        const p = this.projectilePool.get(x, y, angle, speed, duration, color, damage, ownerId);
+
+        // The projectile is already added to this.projectiles group when created by the pool factory.
+        // The pool's get method will call onEnable, which sets active/visible.
+    }
+
+    public update(time: number, delta: number) {
+        // Cleanup dead projectiles
+        const children = this.projectiles.getChildren() as Projectile[];
+        for (let i = children.length - 1; i >= 0; i--) {
+            const p = children[i];
+
+            // Projectile.update() sets active=false when its lifespan runs out.
+            // We check for inactive projectiles that are still in the group
+            // and release them back to the pool.
+            if (!p.active) {
+                this.projectilePool.release(p);
+            }
+        }
     }
 
     public checkCollisions(
-        projectileGroup: Phaser.GameObjects.Group,
         enemyGroup: Phaser.GameObjects.Group,
         players: Player[],
-        onPlayerDamaged: (amount: number) => void,
-        onEnemyKilled: (enemy: Enemy) => void
+        onPlayerDamaged: (amount: number) => void
     ) {
         // Projectile -> Enemy
-        this.scene.physics.overlap(projectileGroup, enemyGroup, (proj: any, enemy: any) => {
+        this.scene.physics.overlap(this.projectiles, enemyGroup, (proj: any, enemy: any) => {
             const projectile = proj as Projectile;
             const e = enemy as Enemy;
 
             if (e.takeDamage(projectile.damage)) {
-                onEnemyKilled(e);
+                // Killed handled by Enemy event
                 this.scene.cameras.main.shake(50, 0.002);
             }
             projectile.destroy();

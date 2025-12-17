@@ -149,7 +149,7 @@ export class EnemyCharger extends Enemy {
         return super.takeDamage(damage);
     }
 
-    seekPlayer(players: Player[], speed: number) {
+    seekPlayer(players: any[]) {
         if (this.behaviorState !== BehaviorState.SEEKING) {
             if (players.length > 0 && this.behaviorState === BehaviorState.PREPARING) {
                 const p = players[0];
@@ -158,6 +158,6 @@ export class EnemyCharger extends Enemy {
             }
             return;
         }
-        super.seekPlayer(players, speed);
+        super.seekPlayer(players);
     }
 }

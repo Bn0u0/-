@@ -73,32 +73,32 @@ interface ItemTemplate {
 const TEMPLATES: ItemTemplate[] = [
     // WEAPONS
     {
-        baseId: 'wpn_vanguard_sword', namePattern: 'Pulse Blade',
+        baseId: 'wpn_vanguard_sword', namePattern: '脈衝光刃',
         type: ItemType.WEAPON, slot: EquipmentSlot.MAIN_HAND,
         icon: '⚔️', classReq: ['Vanguard'],
         baseStats: { atk: 10, speed: 0.05 }
     },
     {
-        baseId: 'wpn_vanguard_shield', namePattern: 'Repulsor Buckler',
+        baseId: 'wpn_vanguard_shield', namePattern: '斥力圓盾',
         type: ItemType.WEAPON, slot: EquipmentSlot.OFF_HAND,
         icon: '🛡️', classReq: ['Vanguard'],
         baseStats: { shield: 20, hp: 10 }
     },
     {
-        baseId: 'wpn_bastion_hammer', namePattern: 'Impact Hammer',
+        baseId: 'wpn_bastion_hammer', namePattern: '衝擊重錘',
         type: ItemType.WEAPON, slot: EquipmentSlot.MAIN_HAND,
         icon: '🔨', classReq: ['Bastion'],
         baseStats: { atk: 10 }, // Will be multiplied by 2H logic
         isTwoHanded: true
     },
     {
-        baseId: 'wpn_bastion_wall', namePattern: 'Aegis Wall',
+        baseId: 'wpn_bastion_wall', namePattern: '埃癸斯之壁',
         type: ItemType.WEAPON, slot: EquipmentSlot.OFF_HAND,
         icon: '🧱', classReq: ['Bastion'],
         baseStats: { hp: 50, shield: 50 }
     },
     {
-        baseId: 'wpn_spectre_rifle', namePattern: 'Phase Rifle',
+        baseId: 'wpn_spectre_rifle', namePattern: '相位步槍',
         type: ItemType.WEAPON, slot: EquipmentSlot.MAIN_HAND,
         icon: '🔫', classReq: ['Spectre'],
         baseStats: { atk: 12, cooldown: 0.05 }, // Slightly higher base, 2H
@@ -106,32 +106,32 @@ const TEMPLATES: ItemTemplate[] = [
     },
     // ARMOR (Universal)
     {
-        baseId: 'arm_head', namePattern: 'Visor',
+        baseId: 'arm_head', namePattern: '戰術面甲',
         type: ItemType.ARMOR, slot: EquipmentSlot.HEAD,
         icon: '🥽', baseStats: { shield: 10 }
     },
     {
-        baseId: 'arm_body', namePattern: 'Vest',
+        baseId: 'arm_body', namePattern: '複合護甲',
         type: ItemType.ARMOR, slot: EquipmentSlot.BODY,
         icon: '🦺', baseStats: { hp: 20 }
     },
     {
-        baseId: 'arm_legs', namePattern: 'Pants',
+        baseId: 'arm_legs', namePattern: '外骨骼護腿',
         type: ItemType.ARMOR, slot: EquipmentSlot.LEGS,
         icon: '👖', baseStats: { speed: 0.02 }
     },
     {
-        baseId: 'arm_feet', namePattern: 'Boots',
+        baseId: 'arm_feet', namePattern: '重力戰靴',
         type: ItemType.ARMOR, slot: EquipmentSlot.FEET,
         icon: '👢', baseStats: { speed: 0.05 }
     },
 ];
 
 const RARITY_FLAGS: Record<ItemRarity, { mult: number, color: string, prefix: string, bonusStat?: Partial<ItemStats> }> = {
-    [ItemRarity.COMMON]: { mult: 1.0, color: '⚪', prefix: 'Standard', bonusStat: {} },
-    [ItemRarity.UNCOMMON]: { mult: 1.2, color: '🟢', prefix: 'Enhanced', bonusStat: { crit: 5 } },
-    [ItemRarity.RARE]: { mult: 1.4, color: '🔵', prefix: 'Advanced', bonusStat: { cooldown: 0.05 } },
-    [ItemRarity.LEGENDARY]: { mult: 1.6, color: '🟡', prefix: 'Elite', bonusStat: { atk: 5, hp: 20 } }
+    [ItemRarity.COMMON]: { mult: 1.0, color: '⚪', prefix: '標準', bonusStat: {} },
+    [ItemRarity.UNCOMMON]: { mult: 1.2, color: '🟢', prefix: '強化', bonusStat: { crit: 5 } },
+    [ItemRarity.RARE]: { mult: 1.4, color: '🔵', prefix: '高階', bonusStat: { cooldown: 0.05 } },
+    [ItemRarity.LEGENDARY]: { mult: 1.6, color: '🟡', prefix: '菁英', bonusStat: { atk: 5, hp: 20 } }
 };
 
 function generateDatabase(): Record<string, ItemDef> {
@@ -205,12 +205,12 @@ function generateDatabase(): Record<string, ItemDef> {
 
     // 2. Add Misc Items (Artifacts, Scrap) - Non Scaling for now
     db['art_box_mk1'] = {
-        id: 'art_box_mk1', name: 'Encrypted Cache',
+        id: 'art_box_mk1', name: '加密數據箱',
         type: ItemType.ARTIFACT, slot: EquipmentSlot.NONE,
         rarity: ItemRarity.COMMON, tier: 1, stats: {}, icon: '📦'
     };
     db['m_scrap'] = {
-        id: 'm_scrap', name: 'Scrap Metal',
+        id: 'm_scrap', name: '金屬廢料',
         type: ItemType.SCRAP, slot: EquipmentSlot.NONE,
         rarity: ItemRarity.COMMON, tier: 0, stats: {}, icon: '⚙️'
     };

@@ -1,4 +1,5 @@
 import { InventoryItem, ItemType, ITEM_DATABASE, getItemDef, EquipmentSlot, ItemStats, ItemRarity } from '../game/data/Items';
+import { LOOT_TABLES, rollRarity } from '../game/data/LootTables';
 
 // Simple UUID generator
 function genId() { return Math.random().toString(36).substr(2, 9); }
@@ -207,22 +208,53 @@ class InventoryService {
         return `https://synapse.game/gift/${item.defId}/${genId()}`;
     }
 
+    public addCredits(amount: number) {
+        this.state.credits += Math.floor(amount);
+        this.save();
+    }
+
+    public removeCredits(amount: number): boolean {
+        if (this.state.credits >= amount) {
+            this.state.credits -= Math.floor(amount);
+            this.save();
+            return true;
+        }
+        return false;
+    }
+
     public decryptArtifact(itemId: string) {
         const idx = this.state.stash.findIndex(i => i.id === itemId);
         if (idx === -1) return null;
 
+        const COST = 50; // Decrypt Cost
+        if (this.state.credits < COST) return null; // Logic check, UI should prevent too
+
+        this.removeCredits(COST);
         this.state.stash.splice(idx, 1);
 
-        // Roll for reward (Simulate 30% Asymmetric)
-        const chance = Math.random();
-        let newDefId = 'wpn_vanguard_sword_mk2';
+        // 1. Roll Rarity
+        const rarity = rollRarity();
 
-        if (chance < 0.3) {
-            // Off-class drop (e.g. Bastion Hammer)
-            newDefId = 'wpn_bastion_hammer_mk1';
+        // 2. Roll Base Item
+        // We use the generic table, or filter DB by type?
+        // Let's us LOOT_TABLES.ARTIFACT_DECRYPT for base ID
+        const baseId = LOOT_TABLES.ARTIFACT_DECRYPT.roll() || 'wpn_vanguard_sword';
+
+        // 3. Construct Full Def ID
+        // e.g. wpn_vanguard_sword_mk1_rare
+        // Currently DB keys are formatted as: `${baseId}_mk${tier}_${rarity}`
+        // We assume Tier 1 for basic artifacts. Later artifacts could be Tier 2.
+        const tier = 1;
+        const fullDefId = `${baseId}_mk${tier}_${rarity.toLowerCase()}`;
+
+        // Verify it exists (fallback to common if not)
+        let finalDefId = fullDefId;
+        if (!getItemDef(finalDefId)) {
+            console.warn(`Def ID not found: ${finalDefId}, falling back to common`);
+            finalDefId = `${baseId}_mk${tier}_common`;
         }
 
-        const newItem = this.createItem(newDefId);
+        const newItem = this.createItem(finalDefId);
         this.state.stash.push(newItem);
         this.save();
         return newItem;
@@ -234,11 +266,23 @@ class InventoryService {
 
         const item = this.state.stash[idx];
         const def = getItemDef(item.defId);
+
         let val = 10;
-        if (def && def.rarity === ItemRarity.UNCOMMON) val = 50;
+        if (def) {
+            // Dynamic Price
+            switch (def.rarity) {
+                case ItemRarity.COMMON: val = 10; break;
+                case ItemRarity.UNCOMMON: val = 25; break;
+                case ItemRarity.RARE: val = 100; break;
+                case ItemRarity.LEGENDARY: val = 500; break;
+            }
+            // Artifacts
+            if (def.type === ItemType.ARTIFACT) val = 5;
+            if (def.type === ItemType.SCRAP) val = 1;
+        }
 
         this.state.stash.splice(idx, 1);
-        this.state.credits += val;
+        this.addCredits(val);
         this.save();
     }
 

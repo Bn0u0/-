@@ -57,9 +57,22 @@ export const SkillsHUD: React.FC = () => {
                         {/* Border Glow if Ready */}
                         <div className={`absolute inset-0 border-2 z-30 transition-colors ${isReady ? 'border-cyan-400 drop-shadow-[0_0_5px_rgba(84,252,252,0.8)]' : 'border-transparent'}`} />
 
-                        {/* Icon (Text for now, should be Rune Image) */}
-                        <div className={`relative z-10 text-xl text-white ${isReady ? 'opacity-100' : 'opacity-40 grayscale'}`}>
-                            {skill.icon}
+                        {/* Icon (Geometric CSS Shapes) */}
+                        <div className={`relative z-10 w-full h-full flex items-center justify-center ${isReady ? 'opacity-100' : 'opacity-40 grayscale'}`}>
+                            {skill.id === 'dash' && (
+                                // Lightning Bolt / Flash
+                                <div className="w-4 h-8 bg-yellow-400 rotate-12 skew-x-12 shadow-[0_0_10px_yellow]"></div>
+                            )}
+                            {skill.id === 'skill1' && (
+                                // Diamond
+                                <div className="w-6 h-6 bg-cyan-400 rotate-45 shadow-[0_0_10px_cyan]"></div>
+                            )}
+                            {skill.id === 'skill2' && (
+                                // Hexagon / Circle Core
+                                <div className="w-8 h-8 rounded-full border-4 border-[#ff0055] flex items-center justify-center shadow-[0_0_10px_magenta]">
+                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Key Hint (Pixel Tag) */}

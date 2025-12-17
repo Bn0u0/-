@@ -13,7 +13,7 @@ import { Bastion } from '../classes/Bastion';
 import { Catalyst } from '../classes/Catalyst';
 import { Projectile } from '../classes/Projectile';
 import { PowerupService, PowerupType } from '../../services/PowerupService';
-import { LootService, LootItemDef } from '../../services/LootService';
+import { LootService } from '../../services/LootService';
 import { inventoryService } from '../../services/InventoryService';
 
 // Managers
@@ -72,7 +72,7 @@ export class MainScene extends Phaser.Scene {
     private waveManager!: WaveManager;
     private extractionManager!: ExtractionManager;
     private combatManager!: CombatManager;
-    private terrainManager!: TerrainManager;
+    public terrainManager!: TerrainManager;
     private playerFactory!: PlayerFactory;
     private inputSystem!: InputSystem;
 
@@ -157,14 +157,28 @@ export class MainScene extends Phaser.Scene {
         });
 
         // Wiring
-        this.waveManager.onNextWaveRequest = (nextWave) => this.startNewWave(nextWave);
-        this.extractionManager.spawnZones();
-
-        // Events
+        // onNextWaveRequest removed - Director handles flow
+        // this.waveManager.onNextWaveRequest = ... legacy code removed // Events
         EventBus.on('START_MATCH', this.handleStartMatch, this);
         EventBus.on('NETWORK_PACKET', this.handleNetworkPacket, this);
         EventBus.on('APPLY_UPGRADE', this.applyUpgrade, this);
-        EventBus.on('ENEMY_KILLED', (score: number) => this.awardScore(score));
+        EventBus.on('ENEMY_KILLED', (data: { score: number, x: number, y: number }) => {
+            this.awardScore(data.score);
+            this.lootService.trySpawnLoot(data.x, data.y);
+        });
+        EventBus.on('DIRECTOR_STATE_CHANGE', (data: any) => {
+            // Show Toast
+            const txt = this.add.text(this.cameras.main.width / 2, 100, `WARNING: ${data.msg}`, {
+                fontSize: '32px', color: '#ff00ff', stroke: '#000', strokeThickness: 4, fontStyle: 'bold'
+            }).setOrigin(0.5).setScrollFactor(0).setDepth(2000);
+
+            this.tweens.add({
+                targets: txt,
+                alpha: 0,
+                duration: 4000,
+                onComplete: () => txt.destroy()
+            });
+        });
 
         // Input Events
         EventBus.on('JOYSTICK_MOVE', (vec: { x: number, y: number }) => this.inputSystem.setVirtualAxis(vec.x, vec.y));
@@ -325,7 +339,7 @@ export class MainScene extends Phaser.Scene {
                 (child as Enemy).seekPlayer([this.commander!, this.drone!], 100);
             });
             this.runCombatLogic();
-            this.waveManager.update();
+            this.waveManager.update(time, delta);
 
             if (this.currentMode === 'MULTI') {
                 this.broadcastGameState(time);
@@ -348,15 +362,9 @@ export class MainScene extends Phaser.Scene {
     runCombatLogic() {
         const players = [this.commander!, this.drone!].filter(p => !!p);
         this.combatManager.checkCollisions(
-            this.projectileGroup!,
             this.enemyGroup!,
             players,
-            (amt) => this.takeDamage(amt),
-            (enemy) => {
-                this.awardScore(10);
-                this.xp += 1;
-                if (this.xp >= this.xpToNextLevel) this.levelUp();
-            }
+            (amt) => this.takeDamage(amt)
         );
     }
 
@@ -375,7 +383,7 @@ export class MainScene extends Phaser.Scene {
         this.add.rectangle(0, 0, this.cameras.main.width, this.cameras.main.height, 0x000000, 0.8)
             .setScrollFactor(0).setDepth(1000);
 
-        this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 3, 'EXTRACTION SUCCESSFUL', {
+        this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 3, '撤離成功', {
             fontSize: '48px', color: '#00FF00', fontStyle: 'bold'
         }).setOrigin(0.5).setScrollFactor(0).setDepth(1001);
 
@@ -403,7 +411,7 @@ export class MainScene extends Phaser.Scene {
         }
 
         // Loot List
-        let lootList = "LOOT SECURED:\n";
+        let lootList = "戰利品確認:\n";
         if (this.myUnit) {
             this.myUnit.lootBag.forEach(item => lootList += `> ${item.name}\n`);
         }
@@ -477,18 +485,38 @@ export class MainScene extends Phaser.Scene {
         this.physics.overlap(this.myUnit, this.lootService.group, (p: any, l: any) => {
             const player = p as Player;
             const loot = l as Phaser.GameObjects.Container;
-            const item = loot.getData('item') as LootItemDef;
+            const def = loot.getData('itemDef'); // Updated key
 
-            if (player.lootBag.length < 5) {
-                player.lootBag.push(item);
+            if (!def) return;
+
+            // Handle Scrap (Instant Credit)
+            if (def.type === 'SCRAP') { // String check or import ItemType
+                inventoryService.addCredits(10); // 10 Credits per scrap
                 loot.destroy();
-                this.events.emit('LOOT_PICKUP', item);
-                const txt = this.add.text(player.x, player.y - 50, `+${item.name}`, {
-                    fontSize: '16px', color: '#ffffff', stroke: '#000', strokeThickness: 2
+
+                // Float Text
+                const txt = this.add.text(player.x, player.y - 40, `+10 CR`, {
+                    fontSize: '12px', color: '#ffff00', fontStyle: 'bold'
+                }).setOrigin(0.5);
+                this.tweens.add({ targets: txt, y: player.y - 80, alpha: 0, duration: 800, onComplete: () => txt.destroy() });
+                return;
+            }
+
+            // Handle Artifacts (Bag)
+            if (player.lootBag.length < 5) {
+                player.lootBag.push(def);
+                loot.destroy();
+                this.events.emit('LOOT_PICKUP', def);
+
+                const txt = this.add.text(player.x, player.y - 50, `+${def.name}`, {
+                    fontSize: '16px', color: '#00ffff', stroke: '#000', strokeThickness: 2
                 }).setOrigin(0.5);
                 this.tweens.add({
                     targets: txt, y: player.y - 100, alpha: 0, duration: 1000, onComplete: () => txt.destroy()
                 });
+            } else {
+                // Bag Full Feedback
+                // Optional: Show "BAG FULL" text once
             }
         });
     }

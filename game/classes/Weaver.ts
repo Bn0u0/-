@@ -83,15 +83,16 @@ export class Weaver extends Player {
 
     private fire(target: Enemy, projectiles: Phaser.GameObjects.Group) {
         // Create projectile
+        // Create projectile (Non-pooled for now, should use pool in future if Weaver becomes common)
         const d = this.getDamage();
-        const p = new Projectile(this.scene, this.x, this.y, d.dmg, this.id);
+        const p = new Projectile(this.scene);
         const angle = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
 
         // Homing behavior
         p.isHoming = true;
         p.target = target;
 
-        p.fire(this.x, this.y, angle, 500, 1500, 0x00FFFF);
+        p.fire(this.x, this.y, angle, 500, 1500, 0x00FFFF, d.dmg, this.id);
         projectiles.add(p);
 
         // Visual kick

@@ -1,26 +1,5 @@
 import Phaser from 'phaser';
-
-export enum LootRarity {
-    COMMON = 0,
-    UNCOMMON = 1,
-    RARE = 2,
-    LEGENDARY = 3
-}
-
-export interface LootItemDef {
-    id: string;
-    name: string;
-    rarity: LootRarity;
-    value: number;
-    color: number;
-}
-
-export const LOOT_TABLE: LootItemDef[] = [
-    { id: 'scrap_metal', name: 'Scrap Metal', rarity: LootRarity.COMMON, value: 50, color: 0x888888 },
-    { id: 'energy_cell', name: 'Energy Cell', rarity: LootRarity.UNCOMMON, value: 150, color: 0x00FF00 },
-    { id: 'data_chip', name: 'Encrypted Chip', rarity: LootRarity.RARE, value: 500, color: 0x0088FF },
-    { id: 'neuro_core', name: 'Neuro Core', rarity: LootRarity.LEGENDARY, value: 2000, color: 0xFFD700 },
-];
+import { ItemDef, getItemDef, ItemRarity, ItemType } from '../game/data/Items';
 
 export class LootService {
     private scene: Phaser.Scene;
@@ -31,44 +10,65 @@ export class LootService {
         this.group = scene.add.group();
     }
 
-    spawnLoot(x: number, y: number, rarityBias: number = 0) {
-        // Roll rarity
-        const roll = Math.random() + rarityBias;
-        let rarity = LootRarity.COMMON;
+    public trySpawnLoot(x: number, y: number, chanceMod: number = 1.0) {
+        const roll = Math.random();
 
-        if (roll > 0.95) rarity = LootRarity.LEGENDARY;
-        else if (roll > 0.8) rarity = LootRarity.RARE;
-        else if (roll > 0.6) rarity = LootRarity.UNCOMMON;
+        // 15% Chance for Artifact
+        if (roll < 0.15 * chanceMod) {
+            this.spawnItem(x, y, 'art_box_mk1');
+            return;
+        }
 
-        // Filter table
-        const candidates = LOOT_TABLE.filter(i => i.rarity === rarity);
-        const itemDef = candidates[Math.floor(Math.random() * candidates.length)] || LOOT_TABLE[0];
+        // 25% Chance for Scrap (if not artifact)
+        if (roll < 0.40 * chanceMod) {
+            this.spawnItem(x, y, 'm_scrap');
+            return;
+        }
+    }
+
+    private spawnItem(x: number, y: number, itemDefId: string) {
+        const def = getItemDef(itemDefId);
+        if (!def) return;
 
         // Create Visual
         const loot = this.scene.add.container(x, y);
 
-        // Box shape
-        const box = this.scene.add.rectangle(0, 0, 24, 24, 0x333333);
-        box.setStrokeStyle(2, itemDef.color);
+        // Visuals based on Item Type
+        let color = 0xffffff;
+        if (def.rarity === ItemRarity.UNCOMMON) color = 0x00ff00;
+        if (def.rarity === ItemRarity.RARE) color = 0x00ffff;
+        if (def.rarity === ItemRarity.LEGENDARY) color = 0xffff00;
+        if (def.type === ItemType.SCRAP) color = 0x888888;
+        if (def.type === ItemType.ARTIFACT) color = 0x0088ff;
 
-        // Glow
-        const glow = this.scene.add.star(0, 0, 4, 6, 12, itemDef.color);
-        this.scene.tweens.add({
-            targets: glow,
-            angle: 360,
-            duration: 2000,
-            repeat: -1
-        });
+        // Base Shape
+        const box = this.scene.add.rectangle(0, 0, 24, 24, 0x111111);
+        box.setStrokeStyle(2, color);
 
-        loot.add([box, glow]);
+        // Icon/Text
+        const text = this.scene.add.text(0, 0, def.icon, { fontSize: '16px' }).setOrigin(0.5);
+
+        // Effects
+        if (def.type === ItemType.ARTIFACT) {
+            const glow = this.scene.add.star(0, 0, 4, 8, 16, color, 0.5);
+            this.scene.tweens.add({
+                targets: glow, angle: 360, duration: 3000, repeat: -1
+            });
+            loot.add(glow);
+        }
+
+        loot.add([box, text]);
         loot.setSize(24, 24);
+
         this.scene.physics.add.existing(loot);
-        (loot.body as Phaser.Physics.Arcade.Body).setBounce(0.5).setDrag(100);
+        (loot.body as Phaser.Physics.Arcade.Body).setBounce(0.5).setDrag(100).setVelocity(
+            Phaser.Math.Between(-50, 50),
+            Phaser.Math.Between(-50, 50)
+        );
 
-        // Store data
-        loot.setData('item', itemDef);
+        // Store Definition Data for Pickup
+        loot.setData('itemDef', def);
+
         this.group.add(loot);
-
-        return loot;
     }
 }

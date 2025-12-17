@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, PHYSICS, FX } from '../../constants';
-import { LootItemDef } from '../../services/LootService';
+import { ItemDef } from '../data/Items';
 
 export enum Role {
     Vanguard = 'Vanguard',
@@ -41,7 +41,7 @@ export class Player extends Phaser.GameObjects.Container {
     private dashCooldown: number = 0;
 
     // Inventory
-    public lootBag: LootItemDef[] = [];
+    public lootBag: ItemDef[] = [];
 
     // Skills
     public cooldowns: { [key: string]: number } = {};

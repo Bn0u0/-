@@ -26,7 +26,7 @@ export class NetworkSyncSystem {
         EventBus.on('NETWORK_PACKET', this.handleNetworkPacket, this);
     }
 
-    public setTargets(commander: Player, drone: Player, waveManager: WaveManager) {
+    public setTargets(commander: Player, drone: Player | null, waveManager: WaveManager) {
         this.commander = commander;
         this.drone = drone;
         this.waveManager = waveManager;
@@ -71,7 +71,7 @@ export class NetworkSyncSystem {
 
     private broadcastGameState(time: number) {
         if (time - this.lastSentTime < 45) return;
-        if (!this.commander || !this.drone || !this.waveManager) return;
+        if (!this.commander || !this.waveManager) return;
 
         // Accessing private Scene props via "any" is risky, ideally passed in
         // But for now we just sync positions and basic stats
@@ -86,7 +86,7 @@ export class NetworkSyncSystem {
             type: 'STATE',
             payload: {
                 c: { x: Math.round(this.commander.x), y: Math.round(this.commander.y), r: this.commander.rotation },
-                d: { x: Math.round(this.drone.x), y: Math.round(this.drone.y), r: this.drone.rotation },
+                d: this.drone ? { x: Math.round(this.drone.x), y: Math.round(this.drone.y), r: this.drone.rotation } : { x: 0, y: 0, r: 0 },
                 s: { hp: scene.hp, sc: scene.score, w: this.waveManager.wave, l: scene.level }
             }
         });

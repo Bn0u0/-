@@ -111,14 +111,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onStartGame, onOpenHideout }
                 </div>
             </div>
 
-            <div className="absolute inset-0 pointer-events-none opacity-40 bg-[url('/assets/ui/bg_hld_ruins.png')] bg-cover bg-center filter contrast-125" />
+            {/* Amber-Glitch Background (No PNGs) */}
+            <div className="absolute inset-0 pointer-events-none -z-10 bg-[#0e0d16]" />
+            <div className="absolute inset-0 pointer-events-none -z-10 opacity-20" style={{
+                background: 'radial-gradient(circle at 50% 50%, #2a213a 0%, #0e0d16 100%)'
+            }} />
             <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black"></div>
 
             <div className="relative z-10 flex flex-col items-center w-full max-w-md px-6">
                 <div className="mb-8 text-center transform transition-transform duration-300">
                     {/* Pastel Title */}
-                    <h1 className="text-6xl md:text-8xl font-black text-[#00FFFF] tracking-tight drop-shadow-[0_4px_0_rgba(255,119,188,0.5)]" style={{ fontFamily: '"Varela Round", sans-serif' }}>
-                        割草派對
+                    <h1 className="text-6xl md:text-8xl font-black text-[#00FFFF] tracking-tighter drop-shadow-[2px_2px_0px_#FF00FF]" style={{ fontFamily: 'sans-serif' }}>
+                        SYNAPSE
                     </h1>
                 </div>
 
@@ -202,6 +206,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onStartGame, onOpenHideout }
             <div className="absolute bottom-6 text-[12px] text-[#00FFFF]/60 tracking-widest font-mono">
                 VER 3.0.0 // NEON_POP_PLATINUM
             </div>
-        </div>
+        </div >
     );
 };

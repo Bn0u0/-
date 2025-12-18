@@ -24,6 +24,9 @@ import { GlitchPipeline } from '../pipelines/GlitchPipeline';
 import { InputRecorder } from '../systems/InputRecorder';
 import { TextureManager } from '../managers/TextureManager';
 import { SoundManager } from '../managers/SoundManager';
+import { World } from '../ecs/ECS';
+import { PhysicsSystem } from '../ecs/systems/PhysicsSystem';
+import { Position, Velocity } from '../ecs/Components';
 
 type GameMode = 'SINGLE' | 'MULTI';
 
@@ -87,6 +90,7 @@ export class MainScene extends Phaser.Scene {
     public networkSyncSystem!: NetworkSyncSystem;
     public inputRecorder!: InputRecorder;
     public soundManager!: SoundManager;
+    public ecsWorld!: World;
 
     private myClass: string = 'BLADE';
     private doubleScoreActive: boolean = false;
@@ -141,6 +145,16 @@ export class MainScene extends Phaser.Scene {
         this.extractionManager = new ExtractionManager(this, this.worldWidth, this.worldHeight);
         this.waveManager = new WaveManager(this, this.enemyGroup);
         this.soundManager = new SoundManager();
+
+        // [PHASE II] ECS Initialization 🧠
+        this.ecsWorld = new World();
+        this.ecsWorld.addSystem(new PhysicsSystem(this.ecsWorld));
+
+        // TEST: Create a Ghost Entity (Pure Data)
+        const ghost = this.ecsWorld.createEntity();
+        this.ecsWorld.addComponent(ghost, Position, 2000, 2000); // Start at center
+        this.ecsWorld.addComponent(ghost, Velocity, 100, 100);   // Move diagonally
+        console.log(`🧠 [ECS] Ghost Entity Created: ID ${ghost}`);
 
         // 7. [STYLE] Lighting System (Amber-Glitch)
         // 啟用光照
@@ -243,18 +257,18 @@ export class MainScene extends Phaser.Scene {
 
         // [Check] 確保 PlayerFactory 正常運作，且 Texture 已生成
         this.commander = PlayerFactory.create(this, cx, cy, this.myClass as any, 'COMMANDER', true);
-        this.drone = PlayerFactory.create(this, cx + 50, cy, 'WEAVER', 'DRONE', false);
+        // [REMOVED] Legacy Drone (User Request)
+        // this.drone = PlayerFactory.create(this, cx + 50, cy, 'WEAVER', 'DRONE', false);
 
         this.myUnit = this.commander;
-        this.otherUnit = this.drone;
+        this.otherUnit = null; // No drone
 
         this.commander.setDepth(100);
-        this.drone.setDepth(100);
 
-        // [STYLE] 讓主角受光照影響 (如果你的貼圖支援 normal map 效果會更好)
+        // [STYLE] 讓主角受光照影響
         // this.commander.setPipeline('Light2D'); 
 
-        this.networkSyncSystem.setTargets(this.commander!, this.drone, this.waveManager);
+        this.networkSyncSystem.setTargets(this.commander!, null, this.waveManager);
     }
 
     update(time: number, delta: number) {
@@ -300,8 +314,20 @@ export class MainScene extends Phaser.Scene {
         this.processLocalInput(time);
 
         // AI & Logic
-        this.updateDroneAI();
+        // this.updateDroneAI(); // REMOVED Legacy
         this.waveManager.update(time, delta);
+
+        // [PHASE II] ECS Logic 🧠
+        this.ecsWorld.update(delta);
+        // Debug: Log Ghost Position occasionally
+        if (time % 2000 < 20) {
+            // Query Test
+            const ghosts = this.ecsWorld.query([Position, Velocity]);
+            if (ghosts.length > 0) {
+                const pos = this.ecsWorld.getComponent<Position>(ghosts[0], Position);
+                console.log(`👻 [ECS] Ghost Pos: ${Math.round(pos?.x || 0)}, ${Math.round(pos?.y || 0)}`);
+            }
+        }
 
         this.enemyGroup?.getChildren().forEach((child) => {
             if (child.active) (child as Enemy).update(time, delta, this.commander!);
@@ -340,7 +366,8 @@ export class MainScene extends Phaser.Scene {
     }
 
     runCombatLogic() {
-        const players = [this.commander!, this.drone!].filter(p => !!p);
+        // Only verify commander collision (Drone removed)
+        const players = [this.commander!].filter(p => !!p);
         this.combatManager.checkCollisions(
             this.enemyGroup!,
             players,

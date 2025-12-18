@@ -10,6 +10,9 @@ import { metaGame, MetaGameState } from './services/MetaGameService';
 import { persistence, UserProfile } from './services/PersistenceService';
 import { EventBus } from './services/EventBus';
 
+import { DraftOverlay } from './components/DraftOverlay';
+import { CardDef } from './game/systems/CardSystem';
+
 // Application State Machine
 type AppState = 'BOOT' | 'MAIN_MENU' | 'HIDEOUT' | 'COMBAT' | 'GAME_OVER' | 'TUTORIAL_DEBRIEF';
 
@@ -20,10 +23,21 @@ const App: React.FC = () => {
     // Subscribe to MetaGame for Game Loop updates (Score, Waves, etc)
     const [metaState, setMetaState] = useState<MetaGameState>(metaGame.getState());
 
+    // Draft Logic
+    const [showDraft, setShowDraft] = useState(false);
+    const [draftChoices, setDraftChoices] = useState<CardDef[]>([]);
+
     useEffect(() => {
         const unsubscribe = metaGame.subscribe((newState: MetaGameState) => {
             setMetaState({ ...newState });
         });
+
+        const onShowDraft = (data: { choices: CardDef[] }) => {
+            setDraftChoices(data.choices);
+            setShowDraft(true);
+        };
+
+        EventBus.on('SHOW_DRAFT', onShowDraft);
 
         // ZERO-BACKEND: Gifting Protocol
         const query = new URLSearchParams(window.location.search);
@@ -62,6 +76,7 @@ const App: React.FC = () => {
 
         return () => {
             unsubscribe();
+            EventBus.off('SHOW_DRAFT', onShowDraft);
             EventBus.off('GAME_OVER', onMissionEnd);
             EventBus.off('EXTRACTION_SUCCESS', onExtraction);
         };
@@ -82,16 +97,21 @@ const App: React.FC = () => {
         // Wait for Scene to be ready before firing Start Match
         // Use a one-time listener or just a loop?
         // Let's rely on MainScene sending SCENE_READY
+        // Logic to prevent double-firing
+        let fallbackTimer: any;
+
         const onSceneReady = () => {
+            clearTimeout(fallbackTimer);
             EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
             EventBus.off('SCENE_READY', onSceneReady);
         };
         EventBus.on('SCENE_READY', onSceneReady);
 
-        // Backup: If scene already ready?
-        setTimeout(() => {
+        // Backup: If scene already ready or missed event
+        fallbackTimer = setTimeout(() => {
+            EventBus.off('SCENE_READY', onSceneReady);
             EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
-        }, 1000); // Fallback
+        }, 2000); // 2s Fallback (increased safety)
     };
 
     // Called from Hideout -> Deploy
@@ -121,6 +141,17 @@ const App: React.FC = () => {
                 <MainMenu
                     onStartGame={handleStartGame}
                     onOpenHideout={() => setAppState('HIDEOUT')}
+                />
+            )}
+
+            {/* Draft Overlay */}
+            {showDraft && (
+                <DraftOverlay
+                    choices={draftChoices}
+                    onDraftComplete={() => {
+                        setShowDraft(false);
+                        EventBus.emit('RESUME');
+                    }}
                 />
             )}
 

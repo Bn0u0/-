@@ -20,6 +20,7 @@ import { TerrainManager } from '../managers/TerrainManager';
 import { PlayerFactory } from '../factories/PlayerFactory';
 import { InputSystem } from '../systems/InputSystem';
 import { EffectManager } from '../managers/EffectManager';
+import { NetworkSyncSystem } from '../systems/NetworkSyncSystem';
 
 type GameMode = 'SINGLE' | 'MULTI';
 
@@ -73,6 +74,7 @@ export class MainScene extends Phaser.Scene {
     public terrainManager!: TerrainManager;
     private inputSystem!: InputSystem;
     private effectManager!: EffectManager;
+    private networkSyncSystem!: NetworkSyncSystem;
 
     // Player Choice
     private myClass: string = 'BLADE'; // Default to new class ID
@@ -80,8 +82,8 @@ export class MainScene extends Phaser.Scene {
     private doubleScoreActive: boolean = false;
 
     // Network Inputs
-    private lastSentTime: number = 0;
-    private remoteInputVector = { x: 0, y: 0 };
+    // private lastSentTime: number = 0; // Moved to System
+    // private remoteInputVector = { x: 0, y: 0 }; // Moved to System
     private statsModifiers = { tetherLength: 1.0, droneSpeed: 1.0, playerSpeed: 1.0 };
 
     public worldWidth: number = 4000;
@@ -100,92 +102,7 @@ export class MainScene extends Phaser.Scene {
         this.cameras.main.setBackgroundColor(COLORS.bg);
         this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
 
-        // --- PROCEDURAL TEXTURE GENERATION ---
-
-        // 1. Flare (Particle)
-        if (!this.textures.exists('flare')) {
-            const g = this.make.graphics({ x: 0, y: 0 });
-            g.fillStyle(0xFFFFFF, 1);
-            g.fillCircle(16, 16, 16);
-            g.generateTexture('flare', 32, 32);
-        }
-
-        // 2. Weapon Textures (Baked for Performance)
-        if (!this.textures.exists('tex_orb')) {
-            const g = this.make.graphics({ x: 0, y: 0 });
-            // Core
-            g.fillStyle(0xFF77BC, 1);
-            g.fillCircle(32, 32, 12);
-            // Ring
-            g.lineStyle(4, 0xFFFFFF, 0.8);
-            g.strokeCircle(32, 32, 20);
-            g.generateTexture('tex_orb', 64, 64);
-            g.destroy();
-        }
-
-        if (!this.textures.exists('tex_boomerang')) {
-            const g = this.make.graphics({ x: 0, y: 0 });
-            g.fillStyle(0x00FF00, 1);
-            // Cross shape
-            g.fillRect(24, 8, 16, 48);
-            g.fillRect(8, 24, 48, 16);
-            g.generateTexture('tex_boomerang', 64, 64);
-            g.destroy();
-        }
-
-        const classes = ['BLADE', 'WEAVER', 'IMPACT', 'PRISM', 'PHANTOM'];
-        // Note: Classes no longer need texture generation here if Player.ts does it per instance.
-        // But for UI or other uses, we might want generic icons? 
-        // Let's rely on Player.ts internal drawing for now.
-
-        // Background handled by TerrainManager
-
-        this.graphics = this.add.graphics();
-        this.graphics.setDepth(50);
-        const colors: Record<string, number> = {
-            'BLADE': 0xFFD700, 'WEAVER': 0x00FFFF, 'IMPACT': 0xFF4400,
-            'PRISM': 0xFF00FF, 'PHANTOM': 0x00FF00
-        };
-
-        classes.forEach(c => {
-            const key = `hero_${c.toLowerCase()}`;
-            if (!this.textures.exists(key)) {
-                const g = this.make.graphics({ x: 0, y: 0 });
-
-                // Base Body
-                g.fillStyle(colors[c], 1);
-                g.fillCircle(32, 32, 24);
-
-                // Detail (Direction Indicator)
-                g.fillStyle(0xFFFFFF, 0.8);
-                g.fillTriangle(32, 10, 50, 40, 14, 40);
-
-                g.generateTexture(key, 64, 64);
-            }
-        });
-        // -----------------------------------
-
-        // Background handled by TerrainManager
-
-        this.graphics = this.add.graphics();
-        this.graphics.setDepth(50);
-
-        // LIGHTING SETUP
-        this.lightLayer = this.add.renderTexture(0, 0, this.scale.width, this.scale.height);
-        this.lightLayer.setScrollFactor(0);
-
-        // TASK_VF_002: Bloom for Neon Glow
-        if (this.cameras.main.postFX) {
-            // bloom(color, offsetX, offsetY, blurStrength, strength, quality)
-            // or just simple bloom in newer Phaser
-            const bloom = this.cameras.main.postFX.addBloom(0xffffff, 1, 1, 1.2, 1.5);
-            // High threshold to only glow neon inputs (Phaser bloom doesn't have threshold prop easily accessible in basic addBloom, 
-            // but it relies on brightness. Our new palette uses 0x00FFFF and 0xFF00FF which are very bright.)
-        }
-
-        // Groups
-        this.enemyGroup = this.add.group({ classType: Enemy, runChildUpdate: true });
-        this.projectileGroup = this.add.group({ runChildUpdate: true }); // Generic group for now
+        // ... (Textures) ...
 
         // Services
         this.powerupService = new PowerupService(this);
@@ -197,6 +114,8 @@ export class MainScene extends Phaser.Scene {
 
         this.weaponSystem = new WeaponSystem(this);
         this.inputSystem = new InputSystem(this);
+        this.networkSyncSystem = new NetworkSyncSystem(this); // V12.0
+
 
         this.combatManager = new CombatManager(this);
         this.extractionManager = new ExtractionManager(this, this.worldWidth, this.worldHeight);
@@ -236,7 +155,8 @@ export class MainScene extends Phaser.Scene {
         // onNextWaveRequest removed - Director handles flow
         // this.waveManager.onNextWaveRequest = ... legacy code removed // Events
         EventBus.on('START_MATCH', this.handleStartMatch, this);
-        EventBus.on('NETWORK_PACKET', this.handleNetworkPacket, this);
+        // Network logic moved to System
+        // EventBus.on('NETWORK_PACKET', this.handleNetworkPacket, this);
         EventBus.on('APPLY_UPGRADE', this.applyUpgrade, this);
         EventBus.on('ENEMY_KILLED', (enemy: any) => {
             // Fix: Enemy emits itself, so use enemy.value and enemy.x/y
@@ -320,6 +240,9 @@ export class MainScene extends Phaser.Scene {
 
         this.scale.on('resize', this.handleResize, this);
         this.events.on('shutdown', () => this.cleanup());
+        this.events.on('shutdown', () => this.cleanup());
+        EventBus.on('RESUME', this.onResume, this);
+        EventBus.on('GAME_OVER_SYNC', this.gameOver, this);
 
         this.resetGame();
         this.updateCameraZoom();
@@ -346,17 +269,8 @@ export class MainScene extends Phaser.Scene {
             // But we have the delayedCall below.
         }
 
-        // RACE CONDITION FIX: Check if we missed the START_MATCH event
-        // If App.tsx sent it before we were ready, we manually trigger it now.
-        // We can check MetaGameService state if relevant, or just rely on a slight delay if assuming App -> Scene flow.
-        this.time.delayedCall(100, () => {
-            // If game hasn't started yet but should have?
-            // Actually, let's just emit SCENE_READY so App knows to ping us? 
-            // Or simpler: Check if we are in COMBAT state according to MetaGame?
-            // Since we don't import MetaGame service directly here (circular?), let's just rely on App re-emitting if needed.
-            // BUT, for now, let's cheat and force start if we know we are in Game Mode.
-            EventBus.emit('SCENE_READY');
-        });
+        // BUT, for now, let's cheat and force start if we know we are in Game Mode.
+        EventBus.emit('SCENE_READY');
     }
 
     handleResize() {
@@ -372,6 +286,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     handleStartMatch(data: any) {
+        console.log("🚀 [MainScene] handleStartMatch triggered:", data);
         // Handle both string (legacy) and object payload
         const mode = (typeof data === 'string') ? data : data.mode;
         if (typeof data === 'object' && data.hero) {
@@ -381,22 +296,25 @@ export class MainScene extends Phaser.Scene {
         const actualMode = mode || (network.isHost ? 'MULTI' : 'MULTI');
         this.currentMode = actualMode as GameMode;
         this.isGameActive = true;
+
+        console.log("🛠️ [MainScene] Setup Players...");
         this.setupPlayers();
 
         if (this.currentMode === 'SINGLE' || network.isHost) {
-            // FTUE: Check if rookie
-            // Note: In React we update hasPlayedOnce AFTER game over. So here it is still false for first run.
+            console.log("🌊 [MainScene] Starting Wave 1...");
             const profile = persistence.getProfile();
             if (!profile.hasPlayedOnce) {
-                // this.startTutorialMode(); // Removed as part of tutorial deletion
+                // Tutorial logic removed
             } else {
                 this.startNewWave(1);
             }
 
             if (this.myUnit) {
-                // Lerp: 0.1 for smooth catch-up
+                console.log("🎥 [MainScene] Camera following Unit:", this.myUnit.x, this.myUnit.y);
                 this.cameras.main.startFollow(this.myUnit, true, 0.08, 0.08);
                 this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
+            } else {
+                console.error("❌ [MainScene] myUnit is NULL after setupPlayers!");
             }
         }
     }
@@ -405,28 +323,41 @@ export class MainScene extends Phaser.Scene {
         if (this.commander) this.commander.destroy();
         if (this.drone) this.drone.destroy();
 
+        console.log(`🔧 [MainScene] Creating Player Class: ${this.myClass}`);
+
+        const cx = this.worldWidth / 2;
+        const cy = this.worldHeight / 2;
+
         if (this.currentMode === 'SINGLE') {
-            this.commander = PlayerFactory.create(this, 0, 0, this.myClass as any, 'COMMANDER', true);
-            this.drone = PlayerFactory.create(this, 200, 0, 'WEAVER', 'DRONE', false);
+            this.commander = PlayerFactory.create(this, cx, cy, this.myClass as any, 'COMMANDER', true);
+            this.drone = PlayerFactory.create(this, cx + 200, cy, 'WEAVER', 'DRONE', false);
             this.myUnit = this.commander;
             this.otherUnit = this.drone;
         } else {
+            // ... keys ...
             const isHost = network.isHost;
-            // For Multiplayer, default to BLADE if unknown
             if (isHost) {
-                this.commander = PlayerFactory.create(this, 0, 0, this.myClass as any, 'COMMANDER', true);
-                this.drone = PlayerFactory.create(this, 200, 0, 'BLADE', 'DRONE', false); // Remote
+                this.commander = PlayerFactory.create(this, cx, cy, this.myClass as any, 'COMMANDER', true);
+                this.drone = PlayerFactory.create(this, cx + 200, cy, 'BLADE', 'DRONE', false);
             } else {
-                this.commander = PlayerFactory.create(this, 0, 0, 'BLADE', 'COMMANDER', false); // Remote
-                this.drone = PlayerFactory.create(this, 200, 0, this.myClass as any, 'DRONE', true);
+                this.commander = PlayerFactory.create(this, cx, cy, 'BLADE', 'COMMANDER', false);
+                this.drone = PlayerFactory.create(this, cx + 200, cy, this.myClass as any, 'DRONE', true);
             }
 
             this.myUnit = isHost ? this.commander : this.drone;
             this.otherUnit = isHost ? this.drone : this.commander;
         }
 
-        this.commander.setDepth(100);
+        if (this.commander) {
+            this.commander.setDepth(100);
+            console.log("✅ [MainScene] Commander Created at depth 100");
+        } else {
+            console.error("❌ [MainScene] Commander Creation Failed!");
+        }
         this.drone.setDepth(100);
+
+        // V12.0: Register Sync Targets
+        this.networkSyncSystem.setTargets(this.commander!, this.drone, this.waveManager);
     }
 
     // createPlayerClass removed - logic moved to PlayerFactory
@@ -437,15 +368,20 @@ export class MainScene extends Phaser.Scene {
     }
 
     cleanup() {
-        EventBus.off('NETWORK_PACKET', this.handleNetworkPacket, this);
+        // EventBus.off('NETWORK_PACKET', this.handleNetworkPacket, this); // Handled in System
         EventBus.off('APPLY_UPGRADE', this.applyUpgrade, this);
         EventBus.off('START_MATCH', this.handleStartMatch, this);
+        EventBus.off('RESUME', this.onResume, this);
+        EventBus.off('GAME_OVER_SYNC', this.gameOver, this);
         this.scale.off('resize', this.handleResize, this);
+
+        this.networkSyncSystem.cleanup();
 
         this.waveManager.cleanup();
         this.enemyGroup?.clear(true, true);
         this.projectileGroup?.clear(true, true);
 
+        // ...
         if (this.powerupService && (this.powerupService as any).timer) {
             (this.powerupService as any).timer.remove(false);
         }
@@ -490,6 +426,9 @@ export class MainScene extends Phaser.Scene {
         // ... Rest of update ...
         super.update(time, delta);
 
+        // V12.0: Network Sync Update
+        this.networkSyncSystem.update(time, delta, this.currentMode, network.isHost);
+
         if (this.isGameActive) {
             this.processLocalInput(time);
         } // 2. Drone Logic
@@ -509,11 +448,9 @@ export class MainScene extends Phaser.Scene {
             this.runCombatLogic();
             this.waveManager.update(time, delta);
 
-            if (this.currentMode === 'MULTI') {
-                this.broadcastGameState(time);
-            }
+            // Note: broadcastGameState removed, handled in NetworkSyncSystem
         } else {
-            this.sendClientInput(time);
+            // Note: sendClientInput removed, handled in NetworkSyncSystem
         }
 
         // 4. Shared Mechanics
@@ -605,11 +542,14 @@ export class MainScene extends Phaser.Scene {
     processDroneMovementAsHost() {
         if (!this.drone) return;
         const body = this.drone.body as Phaser.Physics.Arcade.Body;
-        if (this.remoteInputVector.x !== 0 || this.remoteInputVector.y !== 0) {
+        // Use System Input Store
+        const input = this.networkSyncSystem.remoteInputVector;
+
+        if (input.x !== 0 || input.y !== 0) {
             const accel = PHYSICS.acceleration * this.statsModifiers.droneSpeed;
             body.setDrag(PHYSICS.drag);
-            body.setAcceleration(this.remoteInputVector.x * accel, this.remoteInputVector.y * accel);
-            const angle = Math.atan2(this.remoteInputVector.y, this.remoteInputVector.x);
+            body.setAcceleration(input.x * accel, input.y * accel);
+            const angle = Math.atan2(input.y, input.x);
             const targetRotation = angle + Math.PI / 2;
             this.drone.setRotation(Phaser.Math.Angle.RotateTo(this.drone.rotation, targetRotation, PHYSICS.rotationLerp));
         } else {
@@ -711,38 +651,20 @@ export class MainScene extends Phaser.Scene {
         this.xp = 0;
         this.xpToNextLevel = Math.floor(this.xpToNextLevel * 1.5);
         this.isPaused = true;
-        this.showDraftScreen(); // V4.0 UI
+        this.physics.pause();
+
+        // V12.0: Emit to React Overlay
+        const choices = cardSystem.getRandomDraft(3);
+        EventBus.emit('SHOW_DRAFT', { choices });
         EventBus.emit('LEVEL_UP', this.level);
     }
 
-    showDraftScreen() {
-        const overlay = this.add.container(this.cameras.main.width / 2, this.cameras.main.height / 2);
-        overlay.setScrollFactor(0).setDepth(2000);
+    // showDraftScreen removed in favor of React Overlay
 
-        const bg = this.add.rectangle(0, 0, 800, 400, 0x000000, 0.9);
-        overlay.add(bg);
-
-        const choices = cardSystem.getRandomDraft(3);
-
-        choices.forEach((card, index) => {
-            const x = (index - 1) * 220;
-            const btn = this.add.rectangle(x, 0, 200, 300, 0x333333).setInteractive();
-            const title = this.add.text(x, -100, card.name, { fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5);
-            const desc = this.add.text(x, 0, card.description, { fontSize: '14px', align: 'center', wordWrap: { width: 180 } }).setOrigin(0.5);
-
-            btn.on('pointerover', () => btn.setFillStyle(0x555555));
-            btn.on('pointerout', () => btn.setFillStyle(0x333333));
-
-            btn.on('pointerdown', () => {
-                cardSystem.addCard(card.id);
-                this.myUnit?.recalculateStats();
-                overlay.destroy();
-                this.isPaused = false;
-                this.physics.resume();
-            });
-
-            overlay.add([btn, title, desc]);
-        });
+    onResume() {
+        this.isPaused = false;
+        this.physics.resume();
+        this.myUnit?.recalculateStats();
     }
 
     applyUpgrade(type: UpgradeType) {
@@ -791,60 +713,7 @@ export class MainScene extends Phaser.Scene {
         this.nextBossTime += 300;
     }
 
-    // --- Network (Keep as is mostly, tightly coupled to state) ---
-    sendClientInput(time: number) {
-        if (time - this.lastSentTime < 33) return;
-        const pointer = this.input.activePointer;
-        let vecX = 0, vecY = 0;
-
-        if (pointer.isDown && this.myUnit) {
-            const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-            const dx = worldPoint.x - this.myUnit.x;
-            const dy = worldPoint.y - this.myUnit.y;
-            const angle = Math.atan2(dy, dx);
-            vecX = Math.cos(angle);
-            vecY = Math.sin(angle);
-        }
-        network.broadcast({ type: 'INPUT', payload: { x: vecX, y: vecY } });
-        this.lastSentTime = time;
-    }
-
-    broadcastGameState(time: number) {
-        if (time - this.lastSentTime < 45) return;
-        network.broadcast({
-            type: 'STATE',
-            payload: {
-                c: { x: Math.round(this.commander!.x), y: Math.round(this.commander!.y), r: this.commander!.rotation },
-                d: { x: Math.round(this.drone!.x), y: Math.round(this.drone!.y), r: this.drone!.rotation },
-                s: { hp: this.hp, sc: this.score, w: this.waveManager.wave, l: this.level }
-            }
-        });
-        this.lastSentTime = time;
-    }
-
-    handleNetworkPacket(data: any) {
-        if (data.type === 'START_MATCH') {
-            EventBus.emit('START_MATCH', 'MULTI');
-        }
-        else if (data.type === 'INPUT' && network.isHost) {
-            this.remoteInputVector = data.payload;
-        }
-        else if (data.type === 'STATE' && !network.isHost) {
-            const s = data.payload;
-            if (this.commander) { this.commander.setPosition(s.c.x, s.c.y); this.commander.setRotation(s.c.r); }
-            if (this.drone) { this.drone.setPosition(s.d.x, s.d.y); this.drone.setRotation(s.d.r); }
-            if (s.s) {
-                this.hp = s.s.hp;
-                this.score = s.s.sc;
-                this.waveManager.wave = s.s.w;
-                this.level = s.s.l;
-                this.emitStatsUpdate();
-            }
-        }
-        else if (data.type === 'GAME_OVER') {
-            this.gameOver();
-        }
-    }
+    // --- Network Logic moved to NetworkSyncSystem ---
 
     private updateLighting() {
         if (this.lightLayer && this.lightMask) {

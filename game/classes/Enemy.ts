@@ -22,8 +22,9 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
     private aiTimer: number = 0;
     private target: Player | null = null;
 
-    // Visuals
-    protected graphics: Phaser.GameObjects.Graphics;
+    // Visuals (Hierarchical)
+    protected graphics: Phaser.GameObjects.Graphics; // Main Body
+    protected subPart: Phaser.GameObjects.Graphics;  // Moving Part (Ring, Legs)
     protected shadow: Phaser.GameObjects.Ellipse;
 
     // 2.5D
@@ -38,7 +39,11 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         this.shadow = scene.add.ellipse(0, 0, 30, 10, 0x000000, 0.4);
         this.add(this.shadow);
 
-        // Visuals
+        // Sub Part (Behind or scalable)
+        this.subPart = scene.add.graphics();
+        this.add(this.subPart);
+
+        // Main Body
         this.graphics = scene.add.graphics();
         this.add(this.graphics);
 
@@ -47,7 +52,7 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         scene.physics.add.existing(this);
         const body = this.body as Phaser.Physics.Arcade.Body;
         body.setCircle(12);
-        body.setBounce(0.5); // Soft collision between enemies
+        body.setBounce(0.5);
         body.setDrag(200);
         body.setCollideWorldBounds(true);
     }
@@ -65,40 +70,88 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         this.aiTimer = 0;
 
         // Visuals
-        this.drawEnemy(config.stats.color, config.stats.radius);
+        this.drawAlienArchitecture(config.id, config.stats.color, config.stats.radius);
 
-        // Physics Body Size
+        // Physics Body
         const body = this.body as Phaser.Physics.Arcade.Body;
-        body.setCircle(config.stats.radius);
+        body.setCircle(config.stats.radius, -config.stats.radius + 12, -config.stats.radius + 12);
+        // Note: Offset simplified, usually handled by container center. 
+        // Container (0,0) is center. Circle center is top-left of circle.
+        // setCircle(radius, offsetX, offsetY).
+        body.setCircle(config.stats.radius, -config.stats.radius, -config.stats.radius);
     }
 
-    drawEnemy(color: number, radius: number) {
-        this.graphics.clear();
-        this.graphics.fillStyle(color, 1);
-        this.graphics.lineStyle(2, 0xffffff, 0.8);
+    private drawAlienArchitecture(id: string, color: number, radius: number) {
+        const g = this.graphics;
+        const sub = this.subPart;
+        g.clear();
+        sub.clear(); // Reset sub parts
 
-        // Shape based on ID or just generic abstract shapes
-        switch (this.config?.id) {
-            case 'TRI_DART':
-                this.graphics.fillTriangle(-radius, radius, radius, radius, 0, -radius * 1.5);
+        const dark = Phaser.Display.Color.IntegerToColor(color).darken(30).color;
+        const light = Phaser.Display.Color.IntegerToColor(color).lighten(30).color;
+
+        switch (id) {
+            case 'JELLY': // Blob
+                // Core
+                g.fillStyle(color, 1);
+                g.fillCircle(0, 0, radius * 0.6);
+                // Outer Shell (Translucent)
+                g.fillStyle(color, 0.3);
+                g.fillCircle(0, 0, radius);
+                // Shine
+                g.fillStyle(0xffffff, 0.8);
+                g.fillEllipse(-radius * 0.3, -radius * 0.3, radius * 0.4, radius * 0.2);
                 break;
-            case 'CRAB':
-                this.graphics.fillRect(-radius, -radius / 2, radius * 2, radius);
+
+            case 'TRI_DART': // Rotating Pyramid
+                // We'll rotate the main graphics in update logic if needed, or subPart
+                g.fillStyle(color, 1);
+                g.fillTriangle(0, -radius, radius, radius, -radius, radius);
+                g.lineStyle(2, light, 1);
+                g.strokeTriangle(0, -radius, radius, radius, -radius, radius);
+                // Center Detail
+                g.fillStyle(0x000000, 1);
+                g.fillCircle(0, 0, 4);
                 break;
-            case 'SENTINEL':
-                this.graphics.strokeCircle(0, 0, radius);
-                this.graphics.fillCircle(0, 0, radius * 0.6);
+
+            case 'SENTINEL': // Eye + Ring
+                // Ring (SubPart) - Handled in update for rotation
+                sub.lineStyle(3, color, 1);
+                sub.strokeCircle(0, 0, radius + 4);
+                sub.lineStyle(1, light, 0.5);
+                sub.strokeCircle(0, 0, radius + 8);
+                // Eye (Main)
+                g.fillStyle(0x111111, 1);
+                g.fillCircle(0, 0, radius);
+                g.lineStyle(2, color, 1);
+                g.strokeCircle(0, 0, radius);
+                // Pupil
+                g.fillStyle(0xff0000, 1);
+                g.fillRect(-4, -2, 8, 4);
                 break;
+
+            case 'CRAB': // Heavy Block
+                // Legs (SubPart)
+                sub.lineStyle(4, dark, 1);
+                // Static legs pose, animated in update?
+                // Let's just draw fixed legs for now, maybe twitch them
+                sub.beginPath();
+                sub.moveTo(-radius, 0); sub.lineTo(-radius * 1.5, radius);
+                sub.moveTo(radius, 0); sub.lineTo(radius * 1.5, radius);
+                sub.strokePath();
+
+                // Body
+                g.fillStyle(dark, 1);
+                g.fillRoundedRect(-radius, -radius * 0.8, radius * 2, radius * 1.6, 4);
+                // Top Plate
+                g.fillStyle(color, 1);
+                g.fillRoundedRect(-radius + 2, -radius * 0.8 + 2, radius * 2 - 4, radius * 1.6 - 4, 4);
+                break;
+
             default:
-                // Diamond / Rhombus Standard
-                this.graphics.beginPath();
-                this.graphics.moveTo(0, -radius);
-                this.graphics.lineTo(radius, 0);
-                this.graphics.lineTo(0, radius);
-                this.graphics.lineTo(-radius, 0);
-                this.graphics.closePath();
-                this.graphics.fillPath();
-                this.graphics.strokePath();
+                g.fillStyle(color, 1);
+                g.fillCircle(0, 0, radius);
+                break;
         }
     }
 
@@ -107,7 +160,25 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         if (this.isDead || !this.body) return;
         if (!this.config) return;
 
+        // --- ANIMATION UPDATES ---
+        if (this.config.id === 'TRI_DART') {
+            this.rotation += 0.05; // Spin entire body
+        }
+        else if (this.config.id === 'SENTINEL') {
+            this.subPart.rotation -= 0.02; // Spin ring counter-clockwise
+            // Face player logic overrides body rotation?
+            // Sentinel usually faces player. The body rotation will be set by behavior.
+            // But subPart is a child, so it rotates relative to body. 
+            // If body rotates to face player, ring rotates relative to that.
+        }
+        else if (this.config.id === 'JELLY') {
+            // Squish effect
+            const scale = 1 + Math.sin(time / 150) * 0.1;
+            this.setScale(scale, 1 / scale);
+        }
+
         this.target = player;
+
         const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
 
         // AI Behavior Switch

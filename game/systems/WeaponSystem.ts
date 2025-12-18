@@ -46,68 +46,100 @@ export class WeaponSystem {
     }
 
     private fireMelee(source: { x: number, y: number, rotation: number }, stats: any) {
-        // Visual: Cyan Sweep
+        // Visual: Kinetic Arc (Swipe)
         const graphics = this.scene.add.graphics({ x: source.x, y: source.y });
-        graphics.setScale(stats.sizeMod || 1);
-        graphics.setDepth(10);
-        graphics.lineStyle(4, 0x00FFFF, 1);
+        graphics.setDepth(20);
+        graphics.setRotation(source.rotation);
 
-        // Arc
-        const start = source.rotation - Math.PI / 3;
-        const end = source.rotation + Math.PI / 3;
+        const radius = 90;
+        const color = 0x00FFFF;
+
+        // Draw Swoosh
+        graphics.lineStyle(0, 0x000000, 0); // Fix: Provide dummy color/alpha
+        graphics.fillStyle(color, 0.6);
         graphics.beginPath();
-        graphics.arc(0, 0, 80, start, end, false);
-        graphics.strokePath();
+        graphics.arc(0, 0, radius, -Math.PI / 3, Math.PI / 3, false);
+        graphics.arc(0, 0, radius - 20, Math.PI / 3, -Math.PI / 3, true);
+        graphics.closePath();
+        graphics.fillPath();
 
         this.scene.tweens.add({
             targets: graphics,
             alpha: 0,
-            duration: 200,
+            scaleX: 1.2,
+            scaleY: 1.2,
+            duration: 150,
             onComplete: () => graphics.destroy()
         });
-
-        // TODO: Hit logic (Circle Check)
     }
 
     private fireHomingOrb(source: { x: number, y: number }, stats: any, target?: { x: number, y: number }) {
-        // Projectile Logic would go here
-        // For now, visual placeholder
-        const orb = this.scene.add.circle(source.x, source.y, 8 * (stats.sizeMod || 1), 0xFF77BC);
-        this.scene.physics.add.existing(orb);
+        // Use Baked Texture
+        const scale = 0.5 * (stats.sizeMod || 1);
+        const orb = this.scene.physics.add.sprite(source.x, source.y, 'tex_orb');
+        orb.setScale(scale);
+        orb.setTint(0xFF77BC);
+
+        // Spin animation
+        this.scene.tweens.add({
+            targets: orb,
+            angle: 360,
+            duration: 1000,
+            repeat: -1
+        });
+
         const body = orb.body as Phaser.Physics.Arcade.Body;
+        body.setCircle(24); // Hitbox based on 64x64 texture
 
         if (target) {
             this.scene.physics.moveTo(orb, target.x, target.y, 400);
         } else {
-            body.setVelocity(Math.random() * 200, Math.random() * 200);
+            body.setVelocity(Math.random() * 200 - 100, Math.random() * 200 - 100);
         }
 
-        this.scene.time.delayedCall(1000, () => orb.destroy());
+        this.scene.time.delayedCall(2000, () => {
+            if (orb.active) {
+                // Fizzle out
+                this.scene.tweens.add({ targets: orb, scale: 0, alpha: 0, duration: 200, onComplete: () => orb.destroy() });
+            }
+        });
     }
 
     private fireShockwave(source: { x: number, y: number }, stats: any) {
-        const circle = this.scene.add.circle(source.x, source.y, 10 * (stats.sizeMod || 1), 0xFFD700, 0.5);
+        const circle = this.scene.add.circle(source.x, source.y, 10, 0xFFD700);
+        circle.setStrokeStyle(4, 0xFFD700);
+
         this.scene.tweens.add({
             targets: circle,
-            scale: 10, // 100px radius
+            radius: 120 * (stats.sizeMod || 1),
             alpha: 0,
-            duration: 300,
+            lineWidth: 0,
+            duration: 350,
+            ease: 'Quad.out',
             onComplete: () => circle.destroy()
         });
     }
 
     private fireLaser(source: { x: number, y: number, rotation: number }, stats: any) {
         const graphics = this.scene.add.graphics();
-        graphics.lineStyle(6 * (stats.sizeMod || 1), 0x9D00FF);
+        const width = 8 * (stats.sizeMod || 1);
 
-        const endX = source.x + Math.cos(source.rotation) * 600;
-        const endY = source.y + Math.sin(source.rotation) * 600;
+        // Pulse Effect (random width jitter)
+        graphics.lineStyle(width, 0x9D00FF);
 
+        const length = 800;
+        const endX = source.x + Math.cos(source.rotation) * length;
+        const endY = source.y + Math.sin(source.rotation) * length;
+
+        graphics.lineBetween(source.x, source.y, endX, endY);
+
+        // Core beam (White hot center)
+        graphics.lineStyle(width * 0.4, 0xFFFFFF);
         graphics.lineBetween(source.x, source.y, endX, endY);
 
         this.scene.tweens.add({
             targets: graphics,
-            width: 0, // Doesn't work on graphics directly for line width visual
+            scaleY: 0, // Shrink vertically? No, graphics scale applies to container usually.
             alpha: 0,
             duration: 150,
             onComplete: () => graphics.destroy()
@@ -115,19 +147,36 @@ export class WeaponSystem {
     }
 
     private fireBoomerang(source: { x: number, y: number, rotation: number }, stats: any) {
-        const projectile = this.scene.add.rectangle(source.x, source.y, 20 * (stats.sizeMod || 1), 5 * (stats.sizeMod || 1), 0x00FF00);
-        this.scene.physics.add.existing(projectile);
+        const scale = 0.6 * (stats.sizeMod || 1);
+        const projectile = this.scene.physics.add.sprite(source.x, source.y, 'tex_boomerang');
+        projectile.setScale(scale);
+        projectile.setTint(0x00FF00);
+
+        // Fast Spin
+        this.scene.tweens.add({
+            targets: projectile,
+            angle: 360,
+            duration: 150,
+            repeat: -1
+        });
+
         const body = projectile.body as Phaser.Physics.Arcade.Body;
+        body.setCircle(20);
 
-        const speed = 500;
-        body.setVelocity(Math.cos(source.rotation) * speed, Math.sin(source.rotation) * speed);
+        const speed = 600;
+        const vecX = Math.cos(source.rotation) * speed;
+        const vecY = Math.sin(source.rotation) * speed;
 
-        // Simulated return logic (tween? or physics update)
-        this.scene.time.delayedCall(500, () => {
+        body.setVelocity(vecX, vecY);
+
+        // Return Logic
+        this.scene.time.delayedCall(400, () => {
             if (projectile.active) {
+                // Tween velocity back to source? Or Physics?
+                // Simple physics return
                 this.scene.physics.moveTo(projectile, source.x, source.y, speed);
             }
         });
-        this.scene.time.delayedCall(1500, () => projectile.destroy());
+        this.scene.time.delayedCall(1200, () => projectile.destroy());
     }
 }

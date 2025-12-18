@@ -90,28 +90,56 @@ export class MainScene extends Phaser.Scene {
     }
 
     preload() {
-        this.load.image('floor', 'assets/textures/floor_scifi.png');
-        this.load.image('wall', 'assets/textures/wall_tech.png');
-
-        // Loot Icons (Operation Stitch)
-        this.load.image('icon_artifact_box', 'assets/icons/icon_artifact_box.png');
-        this.load.image('icon_scrap_metal', 'assets/icons/icon_scrap_metal.png');
+        // PROTOCOL ZERO-ASSET: No external files loaded.
+        // Pure code generation only.
     }
 
     create() {
         this.cameras.main.setBackgroundColor(COLORS.bg);
         this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
 
-        // --- ASSET GENERATION (FALLBACK) ---
-        // Since external asset generation failed, we generate textures at runtime.
+        // --- PROCEDURAL TEXTURE GENERATION ---
+
+        // 1. Flare (Particle)
         if (!this.textures.exists('flare')) {
             const g = this.make.graphics({ x: 0, y: 0 });
-            g.fillStyle(0xFFD700, 1);
+            g.fillStyle(0xFFFFFF, 1);
             g.fillCircle(16, 16, 16);
             g.generateTexture('flare', 32, 32);
         }
 
+        // 2. Weapon Textures (Baked for Performance)
+        if (!this.textures.exists('tex_orb')) {
+            const g = this.make.graphics({ x: 0, y: 0 });
+            // Core
+            g.fillStyle(0xFF77BC, 1);
+            g.fillCircle(32, 32, 12);
+            // Ring
+            g.lineStyle(4, 0xFFFFFF, 0.8);
+            g.strokeCircle(32, 32, 20);
+            g.generateTexture('tex_orb', 64, 64);
+            g.destroy();
+        }
+
+        if (!this.textures.exists('tex_boomerang')) {
+            const g = this.make.graphics({ x: 0, y: 0 });
+            g.fillStyle(0x00FF00, 1);
+            // Cross shape
+            g.fillRect(24, 8, 16, 48);
+            g.fillRect(8, 24, 48, 16);
+            g.generateTexture('tex_boomerang', 64, 64);
+            g.destroy();
+        }
+
         const classes = ['BLADE', 'WEAVER', 'IMPACT', 'PRISM', 'PHANTOM'];
+        // Note: Classes no longer need texture generation here if Player.ts does it per instance.
+        // But for UI or other uses, we might want generic icons? 
+        // Let's rely on Player.ts internal drawing for now.
+
+        // Background handled by TerrainManager
+
+        this.graphics = this.add.graphics();
+        this.graphics.setDepth(50);
         const colors: Record<string, number> = {
             'BLADE': 0xFFD700, 'WEAVER': 0x00FFFF, 'IMPACT': 0xFF4400,
             'PRISM': 0xFF00FF, 'PHANTOM': 0x00FF00
@@ -368,6 +396,25 @@ export class MainScene extends Phaser.Scene {
         this.emitStatsUpdate();
 
         // --- HOTFIX CAMERA END ---
+
+        // === HOTFIX: Camera Forced Lock ===
+        if (this.myUnit) {
+            // 1. Move to center
+            this.myUnit.setPosition(2000, 2000);
+
+            // 2. Lock Camera
+            this.cameras.main.startFollow(this.myUnit, true);
+            this.cameras.main.setZoom(1.5);
+
+            console.log("🔥 HOTFIX APPLIED: Player moved to center & Camera locked.");
+        } else {
+            // Note: Player might not be created yet if waiting for START_MATCH.
+            // But user requested this logic in create().
+            // If setupPlayers() hasn't run, this will log "Factory failed" or similar if we strictly follow user logic.
+            // However, this.myUnit is setup in handleStartMatch usually.
+            // If create() -> handleStartMatch is NOT immediate, this block might fail or run too early.
+            // But we have the delayedCall below.
+        }
 
         // RACE CONDITION FIX: Check if we missed the START_MATCH event
         // If App.tsx sent it before we were ready, we manually trigger it now.

@@ -113,6 +113,8 @@ const BASE_DEFS: Partial<ItemDef>[] = [
 
 // --- GENERATOR ---
 
+import { IconGenerator } from '../../services/IconGenerator';
+
 function generateDatabase(): Record<string, ItemDef> {
     const db: Record<string, ItemDef> = {};
 
@@ -126,16 +128,21 @@ function generateDatabase(): Record<string, ItemDef> {
             for (const key in base.stats) {
                 const val = base.stats[key as keyof ItemStats];
                 if (val) {
-                    // Start simple: Multiplier
-                    // Rounding for clean integers on flat stats
                     const isFlat = ['hp', 'shield', 'atk', 'luck', 'crit'].includes(key);
                     let newVal = val * config.mult;
                     if (isFlat) newVal = Math.floor(newVal);
                     else newVal = parseFloat(newVal.toFixed(2));
-
                     newStats[key as keyof ItemStats] = newVal;
                 }
             }
+
+            // GENERATE ICON (Zero-Asset)
+            // Map ItemType to IconGenerator Type
+            let iconType = base.type === 'CORE' ? 'CORE' :
+                base.type === 'DRIVE' ? 'DRIVE' :
+                    base.type === 'PROTOCOL' ? 'PROTOCOL' : 'MATERIAL';
+
+            const iconDataURI = IconGenerator.generate(iconType as any, config.color);
 
             db[newId] = {
                 id: newId,
@@ -144,7 +151,7 @@ function generateDatabase(): Record<string, ItemDef> {
                 rarity: rarity,
                 description: base.description!,
                 stats: newStats,
-                icon: base.icon!,
+                icon: iconDataURI, // Injected Base64
                 color: config.color
             };
         });
@@ -154,7 +161,9 @@ function generateDatabase(): Record<string, ItemDef> {
     db['mat_data'] = {
         id: 'mat_data', name: 'Encrypted Data', type: ItemType.MATERIAL,
         rarity: ItemRarity.COMMON, description: 'Currency for upgrades.',
-        stats: {}, icon: '💾', color: '#ffffff'
+        stats: {},
+        icon: IconGenerator.generate('MATERIAL', '#00FFFF'),
+        color: '#ffffff'
     };
 
     return db;

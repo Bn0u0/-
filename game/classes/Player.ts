@@ -30,8 +30,9 @@ export class Player extends Phaser.GameObjects.Container {
     private dashCooldown: number = 0;
 
     // Visuals
-    public sprite: Phaser.GameObjects.Sprite;
+    // public sprite: Phaser.GameObjects.Sprite; // DEPRECATED
     public classId: string = 'BLADE'; // Default
+    protected graphics: Phaser.GameObjects.Graphics;
     protected coreShape: Phaser.GameObjects.Graphics;
     private emitter: Phaser.GameObjects.Particles.ParticleEmitter;
     private shadow: Phaser.GameObjects.Ellipse;
@@ -82,12 +83,13 @@ export class Player extends Phaser.GameObjects.Container {
         });
         this.emitter.setDepth(-1);
 
-        // Sprite (Main Visual)
-        this.sprite = scene.add.sprite(0, 0, 'hero_blade'); // Default
-        this.sprite.setScale(0.8);
-        this.add(this.sprite);
+        // Sprite REMOVED. Using Graphics Container.
 
-        // Core Shape (Auxiliary)
+        // 1. Base Structure (The "Skeleton")
+        this.graphics = scene.add.graphics();
+        this.add(this.graphics);
+
+        // 2. Core Shape (Hitbox visualizer / shielding)
         this.coreShape = scene.add.graphics();
         this.add(this.coreShape);
 
@@ -124,17 +126,132 @@ export class Player extends Phaser.GameObjects.Container {
     }
 
     drawGuardian(color: number) {
-        // Switch Texture
-        const key = 'hero_' + this.classId.toLowerCase();
-        if (this.scene.textures.exists(key)) {
-            this.sprite.setTexture(key);
-        }
+        // Redirect to new Architecture
+        this.drawArchitecture(this.classId, color);
 
-        // Tint for Team/Status
-        this.sprite.setTint(color);
-
-        // Clear legacy graphics
+        // Clear legacy graphics if any
         this.coreShape.clear();
+    }
+
+    /**
+     * High-Fidelity Procedural Avatar Generator
+     * Draws complex, multi-layered vector art based on class identity.
+     */
+    private drawArchitecture(classId: string, color: number) {
+        const g = this.graphics;
+        g.clear();
+
+        // Palette
+        const primary = color;
+        const dark = Phaser.Display.Color.IntegerToColor(color).darken(40).color;
+        const bright = Phaser.Display.Color.IntegerToColor(color).lighten(40).color;
+        const white = 0xffffff;
+
+        switch (classId) {
+            case 'IMPACT':
+                // "THE TANK" - Heavy Hexagonal Plating
+                // Shoulders
+                g.fillStyle(dark, 1);
+                g.fillRoundedRect(-24, -20, 16, 40, 4); // Left
+                g.fillRoundedRect(8, -20, 16, 40, 4);   // Right
+                g.lineStyle(2, primary, 1);
+                g.strokeRoundedRect(-24, -20, 16, 40, 4);
+                g.strokeRoundedRect(8, -20, 16, 40, 4);
+
+                // Core
+                g.fillStyle(0x222222, 1);
+                g.fillCircle(0, 0, 14);
+                g.fillStyle(primary, 0.8);
+                g.fillCircle(0, 0, 8); // Reactor
+
+                // Shield Front
+                g.fillStyle(white, 0.3);
+                g.beginPath();
+                g.moveTo(-15, 10); g.lineTo(15, 10); g.lineTo(0, 30);
+                g.closePath();
+                g.fillPath();
+                break;
+
+            case 'BLADE':
+                // "THE SPEEDSTER" - Swept-Forward Wings / Jet
+                // Wings
+                g.fillStyle(dark, 1);
+                g.beginPath();
+                g.moveTo(0, 20); g.lineTo(-20, -10); g.lineTo(-10, -25); g.lineTo(0, -10);
+                g.lineTo(10, -25); g.lineTo(20, -10); g.closePath();
+                g.fillPath();
+                g.lineStyle(2, primary, 1);
+                g.strokePath();
+
+                // Blade Edge
+                g.fillStyle(bright, 0.9);
+                g.beginPath();
+                g.moveTo(0, -10); g.lineTo(-5, -40); g.lineTo(0, -35); g.lineTo(5, -40);
+                g.closePath();
+                g.fillPath();
+
+                // Engine Glow
+                g.fillStyle(0x00FFFF, 0.8);
+                g.fillCircle(0, 15, 4);
+                break;
+
+            case 'WEAVER':
+                // "THE TECH" - Floating Drones / Orb
+                // Central Hub
+                g.fillStyle(0x111111, 1);
+                g.fillCircle(0, 0, 12);
+                g.lineStyle(2, primary, 1);
+                g.strokeCircle(0, 0, 12);
+
+                // Circuitry
+                g.fillStyle(bright, 1);
+                g.fillRect(-4, -4, 8, 8);
+
+                // Orbitals (Static visually, but imply rotation via update or just implied)
+                g.fillStyle(dark, 0.8);
+                g.fillCircle(-18, -10, 5);
+                g.fillCircle(18, 10, 5);
+                g.fillCircle(10, -18, 5);
+                g.fillCircle(-10, 18, 5);
+                break;
+
+            case 'PRISM':
+                // "THE GLASS CANNON" - Jagged Crystal
+                g.fillStyle(primary, 0.4);
+                g.beginPath();
+                g.moveTo(0, -25); g.lineTo(15, 0); g.lineTo(0, 25); g.lineTo(-15, 0);
+                g.closePath();
+                g.fillPath();
+
+                // Inner Shard
+                g.fillStyle(white, 0.8);
+                g.beginPath();
+                g.moveTo(0, -15); g.lineTo(8, 0); g.lineTo(0, 15); g.lineTo(-8, 0);
+                g.closePath();
+                g.fillPath();
+                break;
+
+            case 'PHANTOM':
+                // "THE STEALTH" - Cloak shape
+                g.fillStyle(0x000000, 0.6); // Semi-transparent cloak
+                g.beginPath();
+                g.moveTo(0, -20);
+                g.lineTo(20, 10);
+                g.lineTo(0, 30); // Tail
+                g.lineTo(-20, 10);
+                g.closePath();
+                g.fillPath();
+
+                // Eye
+                g.fillStyle(primary, 1);
+                g.fillRect(-6, -5, 12, 4);
+                break;
+
+            default:
+                g.fillStyle(primary, 1);
+                g.fillCircle(0, 0, 16);
+                break;
+        }
     }
 
     public recalculateStats() {
@@ -211,7 +328,8 @@ export class Player extends Phaser.GameObjects.Container {
         }
 
         // Update Sprite Y for jump effect (and other attached visuals)
-        this.sprite.y = -this.z;
+        // this.sprite.y = -this.z; // Deprecated
+        this.graphics.y = -this.z + Math.sin(this.scene.time.now / 300) * 2; // Idle Breathing
         this.coreShape.y = -this.z;
 
         // Emitter

@@ -115,6 +115,16 @@ export class MainScene extends Phaser.Scene {
         this.cameras.main.setBackgroundColor(COLORS.bg);
         this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
 
+        // Initial Camera Bounds
+        this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
+
+        // Register Resize
+        this.scale.on('resize', this.handleResize, this);
+
+        // Initial Center
+        this.cameras.main.scrollX = this.worldWidth / 2 - this.cameras.main.width / 2;
+        this.cameras.main.scrollY = this.worldHeight / 2 - this.cameras.main.height / 2;
+
         // ... (Textures) ...
 
         // Services
@@ -302,16 +312,30 @@ export class MainScene extends Phaser.Scene {
         EventBus.emit('SCENE_READY');
     }
 
-    handleResize() {
+    handleResize(gameSize: Phaser.Structs.Size) {
+        // 1. Reset Viewport
+        this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
+
+        // 2. Recalculate Zoom
         this.updateCameraZoom();
+
+        // 3. Re-lock
+        if (this.myUnit) {
+            this.cameras.main.startFollow(this.myUnit, true, 0.1, 0.1);
+            this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
+        }
     }
 
     updateCameraZoom() {
         const width = this.scale.width;
-        let zoom = 0.85;
-        if (width < 600) zoom = 0.55;
-        else if (width < 1024) zoom = 0.70;
-        this.cameras.main.zoomTo(zoom, 1000, 'Power2');
+        let zoom = 1.0;
+
+        // Mobile (Zoom in for detail)
+        if (width < 600) zoom = 0.8;
+        // Desktop (Wide view)
+        else zoom = 1.0;
+
+        this.cameras.main.zoomTo(zoom, 500, 'Power2');
     }
 
     handleStartMatch(data: any) {
@@ -339,9 +363,13 @@ export class MainScene extends Phaser.Scene {
             }
 
             if (this.myUnit) {
-                console.log("🎥 [MainScene] Camera following Unit:", this.myUnit.x, this.myUnit.y);
-                this.cameras.main.startFollow(this.myUnit, true, 0.08, 0.08);
+                console.log("🎥 [MainScene] Camera Locked on Unit.");
+
+                // Force Lock
+                this.cameras.main.startFollow(this.myUnit, true, 0.1, 0.1);
                 this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
+                this.cameras.main.centerOn(this.myUnit.x, this.myUnit.y);
+                this.updateCameraZoom();
             } else {
                 console.error("❌ [MainScene] myUnit is NULL after setupPlayers!");
             }

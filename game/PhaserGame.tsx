@@ -19,9 +19,12 @@ export const PhaserGame: React.FC = () => {
       type: Phaser.AUTO,
       parent: 'game-container', // Direct ID reference to the z-0 container
       backgroundColor: COLORS.bg,
-      width: initialWidth,
-      height: initialHeight,
-      transparent: false,
+      width: '100%',
+      height: '100%',
+      scale: {
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+      },
       render: {
         powerPreference: 'high-performance',
         antialias: false,
@@ -36,16 +39,8 @@ export const PhaserGame: React.FC = () => {
         },
       },
       scene: [MainScene],
-      scale: {
-        mode: Phaser.Scale.HEIGHT_CONTROLS_WIDTH,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: 720,
-        height: 1280,
-        // min dimensions are not typically used with HEIGHT_CONTROLS_WIDTH when explicit width/height are set
-        // min: {
-        //   width: 320,
-        //   height: 240
-        // }
+      input: {
+        activePointers: 3, // Support Multitouch
       }
     };
 

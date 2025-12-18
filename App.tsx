@@ -94,24 +94,10 @@ const App: React.FC = () => {
         metaGame.startMatch(); // Reset state
         setAppState('COMBAT');
 
-        // Wait for Scene to be ready before firing Start Match
-        // Use a one-time listener or just a loop?
-        // Let's rely on MainScene sending SCENE_READY
-        // Logic to prevent double-firing
-        let fallbackTimer: any;
-
-        const onSceneReady = () => {
-            clearTimeout(fallbackTimer);
-            EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
-            EventBus.off('SCENE_READY', onSceneReady);
-        };
-        EventBus.on('SCENE_READY', onSceneReady);
-
-        // Backup: If scene already ready or missed event
-        fallbackTimer = setTimeout(() => {
-            EventBus.off('SCENE_READY', onSceneReady);
-            EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
-        }, 2000); // 2s Fallback (increased safety)
+        // HOTFIX: Game is preloaded/persistent, so SCENE_READY has likely already fired.
+        // Don't wait for it. Just send the command.
+        console.log("🚀 [App] Immediate Start Match Dispatch");
+        EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
     };
 
     // Called from Hideout -> Deploy

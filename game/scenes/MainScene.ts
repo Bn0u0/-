@@ -23,6 +23,7 @@ import { EffectManager } from '../managers/EffectManager';
 import { NetworkSyncSystem } from '../systems/NetworkSyncSystem';
 import { GlitchPipeline } from '../pipelines/GlitchPipeline';
 import { InputRecorder } from '../systems/InputRecorder'; // Module D: SecurityMode = 'SINGLE' | 'MULTI';
+import { TextureManager } from '../managers/TextureManager'; // Zero-Asset Polish
 
 type GameMode = 'SINGLE' | 'MULTI';
 
@@ -102,6 +103,8 @@ export class MainScene extends Phaser.Scene {
     public worldWidth: number = 4000;
     public worldHeight: number = 4000;
 
+    private lastStatsTime: number = 0;
+
     constructor() {
         super('MainScene');
     }
@@ -117,6 +120,10 @@ export class MainScene extends Phaser.Scene {
 
         // Initial Camera Bounds
         this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
+
+        // Zero-Asset Texture Generation
+        const textureManager = new TextureManager(this);
+        textureManager.generateAll();
 
         // Register Resize
         this.scale.on('resize', this.handleResize, this);
@@ -543,6 +550,12 @@ export class MainScene extends Phaser.Scene {
         // 5. Visuals
         this.commander?.update();
         this.drone?.update();
+
+        // 6. UI Update (Throttled to 10fps / 100ms)
+        if (time - this.lastStatsTime > 100) {
+            this.emitStatsUpdate();
+            this.lastStatsTime = time;
+        }
     }
 
     runCombatLogic() {

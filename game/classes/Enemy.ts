@@ -91,6 +91,10 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         g.clear();
         sub.clear(); // Reset sub parts
 
+        // AMBER-GLITCH: 1px Dark Outline
+        g.lineStyle(1, COLORS.shadow, 1);
+        sub.lineStyle(1, COLORS.shadow, 1);
+
         const dark = Phaser.Display.Color.IntegerToColor(color).darken(30).color;
         const light = Phaser.Display.Color.IntegerToColor(color).lighten(30).color;
 
@@ -412,6 +416,33 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
 
     public die() {
         this.isDead = true;
+
+        // [JUICE] Death Explosion
+        const explosion = this.scene.add.graphics({ x: this.x, y: this.y });
+        explosion.setDepth(this.depth + 1);
+
+        const color = this.config?.stats.color || 0xFFFFFF;
+
+        // Draw 8-bit puff
+        for (let i = 0; i < 8; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * 20;
+            const size = Math.random() * 10 + 5;
+
+            explosion.fillStyle(color, 0.8);
+            const px = Math.cos(angle) * dist;
+            const py = Math.sin(angle) * dist;
+            explosion.fillRect(px, py, size, size);
+        }
+
+        this.scene.tweens.add({
+            targets: explosion,
+            alpha: 0,
+            scale: 2,
+            duration: 300,
+            onComplete: () => explosion.destroy()
+        });
+
         this.setActive(false);
         this.setVisible(false);
         this.body.enable = false;

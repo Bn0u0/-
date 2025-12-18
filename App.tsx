@@ -28,6 +28,14 @@ const App: React.FC = () => {
     const [draftChoices, setDraftChoices] = useState<CardDef[]>([]);
 
     useEffect(() => {
+        // [SYSTEM] 1. Check for Magic Link return
+        persistence.handleAuthCallback().then((restored) => {
+            if (restored) {
+                alert("神經連結已建立。記憶同步完成。");
+                setProfile(persistence.getProfile());
+            }
+        });
+
         const unsubscribe = metaGame.subscribe((newState: MetaGameState) => {
             setMetaState({ ...newState });
         });
@@ -43,20 +51,42 @@ const App: React.FC = () => {
         const query = new URLSearchParams(window.location.search);
         const giftCode = query.get('gift');
         if (giftCode) {
-            const result = persistence.importSaveString(giftCode);
-            if (result.success) {
-                // Remove gift from URL to prevent reload-loop issues
+            // New Protocol: Weapon Gift Only
+            try {
+                // Try JSON decode first (WeaponInstance)
+                const weapon = JSON.parse(atob(giftCode));
+                if (weapon && weapon.baseType) {
+                    persistence.addInventory(weapon);
+                    alert(`🎁 已接收武器傳輸: ${weapon.name} [${weapon.rarity}] !`);
+                } else {
+                    // Fallback to legacy full-save import
+                    const result = persistence.importSaveString(giftCode);
+                    alert(result.success ? `存檔導入: ${result.msg}` : `導入失敗: ${result.msg}`);
+                }
+                // Clean URL
                 window.history.replaceState({}, document.title, window.location.pathname);
-                alert(`INCOMING TRANSMISSION RECEIVED:\n${result.msg}`);
-                setProfile(persistence.getProfile()); // Refresh
-            } else {
-                alert(`TRANSMISSION CORRUPTED:\n${result.msg}`);
+                setProfile(persistence.getProfile());
+            } catch (e) {
+                alert("無法解析傳輸代碼 (Corrupted Signal)");
             }
         }
 
         // Listen for Game Over / Extraction to return to Hideout
         const onMissionEnd = (data: any) => {
             const currentProfile = persistence.getProfile();
+            console.log("🏁 [App] Mission End Received:", data);
+
+            // [SYNC] 將戰鬥中的成就同步到雲端
+            if (data && data.score !== undefined) {
+                persistence.uploadScore(data.score, data.wave || 1, 0); // survivalTime logic can be added later
+
+                // 增加經驗值或等級 (簡單邏輯：過一關升一公分... 不對，是升一級)
+                // 這裡可以根據 data.score 或 data.level 進行更複雜的存檔更新
+                persistence.save({
+                    credits: currentProfile.credits + Math.floor(data.score / 10),
+                    level: Math.max(currentProfile.level, data.level || 1)
+                });
+            }
 
             // FTUE Logic: If rookie, go to Tutorial Debrief
             if (!currentProfile.hasPlayedOnce) {

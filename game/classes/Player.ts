@@ -4,6 +4,7 @@ import { ItemDef } from '../data/Items';
 import { ClassConfig } from '../factories/PlayerFactory';
 import { WeaponSystem } from '../systems/WeaponSystem';
 import { cardSystem } from '../systems/CardSystem';
+import { WeaponInstance } from '../../types';
 
 export class Player extends Phaser.GameObjects.Container {
     public id: string;
@@ -12,6 +13,7 @@ export class Player extends Phaser.GameObjects.Container {
 
     // Class Config
     public classConfig: ClassConfig | null = null;
+    public equippedWeapon: WeaponInstance | null = null;
 
     // Stats
     public stats = {
@@ -116,6 +118,16 @@ export class Player extends Phaser.GameObjects.Container {
         this.classConfig = config;
         this.classId = classId;
 
+        // [Weapon 2.0] Default Weapon based on Class
+        this.equippedWeapon = {
+            id: `init_${classId}_${Date.now()}`,
+            name: `${config.name}標配`,
+            baseType: config.weapon as any,
+            rarity: 'COMMON',
+            modifiers: [],
+            level: 1
+        };
+
         // Apply Base Stats
         this.stats.hp = config.stats.hp;
         this.stats.maxHp = config.stats.hp;
@@ -141,8 +153,8 @@ export class Player extends Phaser.GameObjects.Container {
         const g = this.graphics;
         g.clear();
 
-        // AMBER-GLITCH STYLE: 1px Dark Outline
-        g.lineStyle(1, 0x222222, 1);
+        // AMBER-GLITCH STYLE: 1px Dark Outline (#1B1020)
+        g.lineStyle(1, COLORS.shadow, 1);
 
         // Palette
         const primary = color;
@@ -346,10 +358,10 @@ export class Player extends Phaser.GameObjects.Container {
                 if (time > this.lastFireTime + this.fireRate) {
                     // Fire via WeaponSystem
                     const ws = (this.scene as any).weaponSystem as WeaponSystem;
-                    if (ws) {
-                        ws.fire(this.classConfig.weapon, {
+                    if (ws && this.equippedWeapon) {
+                        ws.fire(this.equippedWeapon, {
                             x: this.x, y: this.y, rotation: angle, id: this.id
-                        }, target);
+                        }, this.currentStats, target);
                     }
                     this.lastFireTime = time;
 

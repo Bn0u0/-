@@ -66,10 +66,23 @@ export class CombatManager {
             const projectile = proj as Projectile;
             const e = enemy as Enemy;
 
-            if (e.takeDamage(projectile.damage)) {
-                // Killed handled by Enemy event
-                this.scene.cameras.main.shake(50, 0.002);
+            const damage = projectile.damage;
+            const kill = e.takeDamage(damage);
+
+            // [JUICE] Hit Feedback
+            EventBus.emit('SHOW_FLOATING_TEXT', {
+                x: e.x, y: e.y,
+                text: `${Math.floor(damage)}`,
+                color: kill ? '#FFAA00' : '#FFFFFF'
+            });
+
+            if (kill) {
+                this.scene.cameras.main.shake(50, 0.005);
+                this.scene.hitStop(60); // Heavier feel on kill
+            } else {
+                this.scene.hitStop(20); // Light nudge on hit
             }
+
             projectile.destroy();
         });
 

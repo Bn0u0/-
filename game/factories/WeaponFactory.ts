@@ -1,54 +1,60 @@
 import Phaser from 'phaser';
-
-export type WeaponType = 'MELEE_SWEEP' | 'HOMING_ORB' | 'SHOCKWAVE' | 'LASER' | 'BOOMERANG';
-
-export interface WeaponStats {
-    type: WeaponType;
-    damage: number;
-    fireRate: number; // ms delay
-    projectileCount: number;
-    speed: number;
-    range: number;
-    sizeMod: number; // 0.5 to 2.0
-    color: number;
-    name: string;
-}
+import { WeaponInstance, WeaponModifier } from '../../types';
 
 export class WeaponFactory {
-    static generate(seed: string, level: number): WeaponStats {
+    static generate(seed: string, level: number): WeaponInstance {
         const rng = new Phaser.Math.RandomDataGenerator([seed]);
 
-        // 1. Pick Type
-        const types: WeaponType[] = ['MELEE_SWEEP', 'HOMING_ORB', 'SHOCKWAVE', 'LASER', 'BOOMERANG'];
-        const type = rng.pick(types);
+        const types: WeaponInstance['baseType'][] = ['MELEE_SWEEP', 'HOMING_ORB', 'SHOCKWAVE', 'LASER', 'BOOMERANG'];
+        const baseType = rng.pick(types);
 
-        // 2. Base Stats scaled by Level
-        const baseDmg = 10 + (level * 2);
-        const damage = Math.floor(baseDmg * rng.realInRange(0.8, 1.2));
+        // Rarity Luck
+        const rarities: WeaponInstance['rarity'][] = ['COMMON', 'RARE', 'LEGENDARY', 'MYTHIC'];
+        const rarityRoll = rng.realInRange(0, 100);
+        let rarity: WeaponInstance['rarity'] = 'COMMON';
 
-        const baseRate = 500 - (level * 10);
-        const fireRate = Math.max(100, Math.floor(baseRate * rng.realInRange(0.9, 1.1)));
+        if (rarityRoll > 98) rarity = 'MYTHIC';
+        else if (rarityRoll > 90) rarity = 'LEGENDARY';
+        else if (rarityRoll > 70) rarity = 'RARE';
 
-        // 3. Modifiers (Rarity)
-        const rarity = rng.weightedPick([1, 1, 1, 0.5, 0.1]); // Common to Legendary
-        const projCount = 1 + (rarity > 0.5 ? rng.integerInRange(1, 4) : 0);
-        const sizeMod = rng.realInRange(0.8, 1.5);
-
-        // 4. Name Gen
-        const prefixes = ['Rusty', 'Neo', 'Cyber', 'Void', 'Hyper', 'Omega'];
-        const suffixes = ['Blaster', 'Slicer', 'Orb', 'Cannon', 'Edge', 'Destructor'];
+        // Name Generation
+        const prefixes = ['Neo', 'Cyber', 'Void', 'Hyper', 'Omega', 'Amber', 'Glitch'];
+        const suffixes = ['Striker', 'Emitter', 'Driver', 'Core', 'Edge', 'Phase'];
         const name = `${rng.pick(prefixes)} ${rng.pick(suffixes)} MK-${level}`;
 
         return {
-            type,
-            damage,
-            fireRate,
-            projectileCount: projCount,
-            speed: 400,
-            range: 300,
-            sizeMod,
-            color: 0xFFFFFF,
-            name
+            id: `wpn_${seed}_${Date.now()}`,
+            name: name,
+            baseType: baseType,
+            rarity: rarity,
+            modifiers: this.generateModifiers(rarity, level, rng),
+            level: level
         };
+    }
+
+    private static generateModifiers(rarity: string, level: number, rng: Phaser.Math.RandomDataGenerator): WeaponModifier[] {
+        const mods: WeaponModifier[] = [];
+        if (rarity === 'COMMON') return mods;
+
+        const modTypes: WeaponModifier['type'][] = ['SPEED', 'DAMAGE', 'PROJECTILE_COUNT'];
+        const count = rarity === 'MYTHIC' ? 4 : (rarity === 'LEGENDARY' ? 2 : 1);
+
+        for (let i = 0; i < count; i++) {
+            const type = rng.pick(modTypes);
+            let value = 1;
+
+            if (type === 'PROJECTILE_COUNT') {
+                value = rarity === 'MYTHIC' ? 2 : 1;
+            } else {
+                value = rng.realInRange(1.1, 1.5 + (level * 0.1));
+            }
+
+            mods.push({
+                id: `mod_${i}_${Date.now()}`,
+                type: type,
+                value: value
+            });
+        }
+        return mods;
     }
 }

@@ -79,14 +79,15 @@ export class LootService {
     }
 
     private spawnWeapon(x: number, y: number, level: number) {
-        const stats = WeaponFactory.generate(Date.now().toString(), level); // Procedural
+        const weapon = WeaponFactory.generate(Date.now().toString(), level);
 
         // Visual
-        const loot = this.scene.add.sprite(x, y, 'icon_weapon_crate'); // Placeholder texture
-        // Note: Make sure icon_weapon_crate exists or fallback
+        const loot = this.scene.add.sprite(x, y, 'icon_weapon_crate');
         if (!this.scene.textures.exists('icon_weapon_crate')) {
-            loot.setTexture('icon_scrap_metal'); // Fallback
-            loot.setTint(0xFF00FF);
+            loot.setTexture('icon_scrap_metal');
+            // Set color based on rarity
+            const colors = { COMMON: 0xFFFFFF, RARE: 0x00FF00, LEGENDARY: 0xFFAA00, MYTHIC: 0xFF00FF };
+            loot.setTint(colors[weapon.rarity] || 0xFFFFFF);
         }
 
         loot.setDisplaySize(48, 48);
@@ -107,11 +108,11 @@ export class LootService {
 
         // Data
         loot.setData('itemDef', {
-            id: 'PROC_WEAPON',
-            name: stats.name,
+            id: weapon.id,
+            name: weapon.name,
             type: ItemType.WEAPON,
-            rarity: ItemRarity.RARE,
-            stats: stats // Store full stats
+            rarity: weapon.rarity,
+            weapon: weapon // Store full weapon instance
         });
 
         this.group.add(loot);

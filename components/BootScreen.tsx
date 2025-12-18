@@ -31,9 +31,9 @@ export const BootScreen: React.FC<BootScreenProps> = ({ onStart }) => {
             }}
         >
             {/* <div className="text-6xl mb-8 animate-pulse">🐰</div> - REMOVED LEGACY RABBIT */}
-            <h1 className="text-6xl mb-8 font-black text-[#00FFFF] tracking-tighter animate-pulse drop-shadow-[0_0_10px_#00FFFF]">
-                SYNAPSE<br />
-                <span className="text-2xl text-[#FF00FF] tracking-[0.5em]">PROTOCOL</span>
+            <h1 className="text-4xl mb-8 font-black text-[#00FFFF] tracking-tighter animate-pulse drop-shadow-[0_0_10px_#00FFFF] text-center">
+                這才較割草<br />
+                <span className="text-xl text-[#FF00FF] tracking-normal font-bold">就3分鐘 別貪!快撤</span>
             </h1>
 
             <div className="w-64 h-2 bg-black rounded-none overflow-hidden border border-[#00FFFF]">

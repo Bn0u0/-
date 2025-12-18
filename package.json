@@ -1,5 +1,5 @@
 {
-  "name": "project-synapse",
+  "name": "grass-cutting-3min",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.88.0",
     "canvas-confetti": "^1.9.4",
     "classnames": "^2.5.1",
     "eventemitter3": "^5.0.1",

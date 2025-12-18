@@ -26,16 +26,19 @@ import { TextureManager } from '../managers/TextureManager';
 import { SoundManager } from '../managers/SoundManager';
 import { World } from '../ecs/ECS';
 import { PhysicsSystem } from '../ecs/systems/PhysicsSystem';
-import { Position, Velocity } from '../ecs/Components';
+import { RenderSystem } from '../ecs/systems/RenderSystem';
+import { Position, Velocity, Renderable } from '../ecs/Components';
 
 type GameMode = 'SINGLE' | 'MULTI';
 
-// [STYLE] Amber-Glitch Palette Definitions
+// [STYLE] Amber-Glitch Visual Constitution (代碼：Neon-Candy Wasteland)
 const AMBER_STYLE = {
-    bg: 0x2D1B2E,          // 深紫色背景 (取代純黑)
-    ambient: 0x665566,     // 暖灰色環境光 (提高亮度，防止畫面太暗)
-    playerLight: 0xFFD1A9, // 鎢絲燈暖黃 (主角光環)
-    shadow: 0x1B1020       // 陰影色
+    bg: 0x2D1B2E,          // 深紫色背景
+    ambient: 0x665566,     // 暖灰色環境光
+    playerLight: 0xFFD1A9, // 鎢絲燈暖黃 (3500K)
+    shadow: 0x1B1020,      // 陰影色
+    glitchBase: 0.02,      // VHS 雜訊質感
+    glitchPeak: 0.5        // 撞擊/暴擊強度
 };
 
 export class MainScene extends Phaser.Scene {
@@ -74,6 +77,7 @@ export class MainScene extends Phaser.Scene {
     private hp: number = 100;
     private maxHp: number = 100;
     private survivalTime: number = 0;
+    private matchTimer: number = 180; // 3 Minutes Countdown
     private nextBossTime: number = 300;
     private pulsePhase: 'SCAVENGE' | 'WARNING' | 'PURGE' = 'SCAVENGE';
 
@@ -149,11 +153,17 @@ export class MainScene extends Phaser.Scene {
         // [PHASE II] ECS Initialization 🧠
         this.ecsWorld = new World();
         this.ecsWorld.addSystem(new PhysicsSystem(this.ecsWorld));
+        this.ecsWorld.addSystem(new RenderSystem(this.ecsWorld));
 
-        // TEST: Create a Ghost Entity (Pure Data)
+        // TEST: Create a Ghost Entity (Now Visible!)
         const ghost = this.ecsWorld.createEntity();
         this.ecsWorld.addComponent(ghost, Position, 2000, 2000); // Start at center
         this.ecsWorld.addComponent(ghost, Velocity, 100, 100);   // Move diagonally
+
+        // Give it a body! (Simple White Circle)
+        const ghostGfx = this.add.circle(0, 0, 15, 0xFFFFFF);
+        this.ecsWorld.addComponent(ghost, Renderable, ghostGfx);
+
         console.log(`🧠 [ECS] Ghost Entity Created: ID ${ghost}`);
 
         // 7. [STYLE] Lighting System (Amber-Glitch)
@@ -277,19 +287,21 @@ export class MainScene extends Phaser.Scene {
             return;
         }
 
-        // [STYLE] Lighting Follow
+        // [STYLE] Lighting Follow & Flicker (模擬老舊燈泡)
         if (this.playerLight) {
             this.playerLight.setPosition(this.myUnit.x, this.myUnit.y);
-            // 呼吸燈效果
-            this.playerLight.intensity = 1.5 + Math.sin(time / 200) * 0.1;
+            this.playerLight.intensity = 1.2 + Math.sin(time / 200) * 0.1;
         }
 
-        // Glitch Decay
+        // [STYLE] Glitch Decay (VHS Style)
         if (this.glitchDuration > 0) {
             this.glitchDuration -= delta;
         } else {
-            // 回復到預設微量雜訊 (VHS style)
-            if (this.glitchIntensity > 0.02) this.glitchIntensity *= 0.9;
+            if (this.glitchIntensity > AMBER_STYLE.glitchBase) {
+                this.glitchIntensity *= 0.85; // Faster fade to base
+            } else {
+                this.glitchIntensity = AMBER_STYLE.glitchBase;
+            }
         }
         if (this.glitchPipeline) {
             this.glitchPipeline.intensity = this.glitchIntensity;
@@ -311,6 +323,24 @@ export class MainScene extends Phaser.Scene {
         if (!this.isGameActive || this.isPaused) return;
 
         this.survivalTime += delta / 1000;
+        this.matchTimer -= delta / 1000;
+
+        // [CORE LOOP] 3-Minute Rule
+        if (this.matchTimer <= 0) {
+            this.matchTimer = 0;
+            this.gameOver(); // Match ends, didn't extract? 
+            return;
+        }
+
+        if (this.matchTimer < 30 && time % 1000 < 50) {
+            EventBus.emit('SHOW_FLOATING_TEXT', {
+                x: this.cameras.main.centerX,
+                y: this.cameras.main.centerY - 100,
+                text: "⚠️ 時間不多了！快撤！",
+                color: '#FF0000'
+            });
+        }
+
         this.processLocalInput(time);
 
         // AI & Logic
@@ -377,7 +407,7 @@ export class MainScene extends Phaser.Scene {
 
     takeDamage(amt: number) {
         this.cameras.main.shake(200, 0.01);
-        this.triggerGlitch(0.5, 200);
+        this.triggerGlitch(AMBER_STYLE.glitchPeak, 150);
         EventBus.emit('PLAY_SFX', 'HIT');
         this.hp -= amt;
         if (this.hp <= 0) {
@@ -425,6 +455,7 @@ export class MainScene extends Phaser.Scene {
             wave: this.waveManager ? this.waveManager.wave : 1,
             enemiesAlive: this.enemyGroup ? this.enemyGroup.getLength() : 0,
             survivalTime: this.survivalTime,
+            matchTimer: Math.ceil(this.matchTimer),
             cooldowns: this.myUnit ? this.myUnit.cooldowns : {},
             maxCooldowns: this.myUnit ? this.myUnit.maxCooldowns : {},
         });
@@ -439,6 +470,15 @@ export class MainScene extends Phaser.Scene {
             EventBus.emit('EXTRACTION_SUCCESS', this.myUnit.lootBag);
             inventoryService.processLootBag(this.myUnit.lootBag.map(i => i.id));
         }
+    }
+
+    public hitStop(duration: number = 50) {
+        this.physics.pause();
+        this.isPaused = true;
+        this.time.delayedCall(duration, () => {
+            this.physics.resume();
+            this.isPaused = false;
+        });
     }
 
     applyUpgrade(type: UpgradeType) { this.isPaused = false; }

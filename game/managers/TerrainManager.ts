@@ -54,10 +54,10 @@ export class TerrainManager {
                 let type = TileType.VOID;
 
                 if (val === TILE_FLOOR) type = TileType.GROUND;
-                else if (val === TILE_WALL) type = TileType.WALL;
+                // else if (val === TILE_WALL) type = TileType.WALL; // REMOVED
 
-                if (type !== TileType.VOID) {
-                    this.createTile(x, y, type, type === TileType.WALL ? 64 : 0);
+                if (type === TileType.GROUND) {
+                    this.createTile(x, y, type, 0);
                 }
             }
         }
@@ -66,13 +66,7 @@ export class TerrainManager {
 
         // Physics
         this.scene.time.delayedCall(100, () => {
-            if (this.scene['myUnit']) this.scene.physics.add.collider(this.scene['myUnit'], this.wallGroup);
-            // Enemies collide with walls
-            if (this.scene['enemyGroup']) this.scene.physics.add.collider(this.scene['enemyGroup'], this.wallGroup);
-            // Projectiles destroy on walls
-            if (this.scene['projectileGroup']) {
-                this.scene.physics.add.collider(this.scene['projectileGroup'], this.wallGroup, (p: any) => p.destroy());
-            }
+            // Walls removed per user request
         });
     }
 

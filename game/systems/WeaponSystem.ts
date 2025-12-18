@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS } from '../../constants';
 import { EventBus } from '../../services/EventBus';
+import { WeaponInstance, WeaponModifier } from '../../types';
 
 export type WeaponType = 'MELEE_SWEEP' | 'HOMING_ORB' | 'SHOCKWAVE' | 'LASER' | 'BOOMERANG';
 
@@ -11,36 +12,44 @@ export class WeaponSystem {
         this.scene = scene;
     }
 
-    public fire(type: WeaponType, source: { x: number, y: number, rotation: number, id: string }, stats: any, target?: { x: number, y: number }) {
+    public fire(weapon: WeaponInstance, source: { x: number, y: number, rotation: number, id: string }, stats: any, target?: { x: number, y: number }) {
         const count = stats.projectileCount || 1;
         const spread = 0.2; // Radian spread
         EventBus.emit('PLAY_SFX', 'SHOOT');
 
-        for (let i = 0; i < count; i++) {
+        // Apply Modifiers from weapon instance
+        let finalStats = { ...stats };
+        weapon.modifiers.forEach((mod: WeaponModifier) => {
+            if (mod.type === 'PROJECTILE_COUNT') finalStats.projectileCount += mod.value;
+            if (mod.type === 'SPREAD') finalStats.spreadMod = (finalStats.spreadMod || 1) + mod.value;
+            // ... other mods
+        });
+
+        for (let i = 0; i < finalStats.projectileCount; i++) {
             // Calculate angle offset
             let angle = source.rotation;
-            if (count > 1) {
-                angle += (i - (count - 1) / 2) * spread;
+            if (finalStats.projectileCount > 1) {
+                angle += (i - (finalStats.projectileCount - 1) / 2) * spread;
             }
 
             // Create modified source
             const modifiedSource = { ...source, rotation: angle };
 
-            switch (type) {
+            switch (weapon.baseType) {
                 case 'MELEE_SWEEP':
-                    this.fireMelee(modifiedSource, stats);
+                    this.fireMelee(modifiedSource, finalStats);
                     break;
                 case 'HOMING_ORB':
-                    this.fireHomingOrb(modifiedSource, stats, target);
+                    this.fireHomingOrb(modifiedSource, finalStats, target);
                     break;
                 case 'SHOCKWAVE':
-                    this.fireShockwave(modifiedSource, stats);
+                    this.fireShockwave(modifiedSource, finalStats);
                     break;
                 case 'LASER':
-                    this.fireLaser(modifiedSource, stats);
+                    this.fireLaser(modifiedSource, finalStats);
                     break;
                 case 'BOOMERANG':
-                    this.fireBoomerang(modifiedSource, stats);
+                    this.fireBoomerang(modifiedSource, finalStats);
                     break;
             }
         }

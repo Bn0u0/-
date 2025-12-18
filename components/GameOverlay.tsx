@@ -14,6 +14,7 @@ export const GameOverlay: React.FC = () => {
         level: 1,
         score: 0,
         survivalTime: 0,
+        matchTimer: 180,
         enemiesAlive: 0,
         wave: 1
     });
@@ -75,7 +76,6 @@ export const GameOverlay: React.FC = () => {
                 <div className="absolute -top-10 left-0 bg-white/10 p-2 rounded backdrop-blur-md">
                     <span className="text-sm font-bold text-white">LVL {stats.level}</span>
                 </div>
-
                 {/* HP Bar */}
                 <div className="w-full h-4 bg-gray-900/80 border border-gray-700 rounded overflow-hidden relative">
                     <div
@@ -87,12 +87,31 @@ export const GameOverlay: React.FC = () => {
                     </span>
                 </div>
 
-                {/* XP Bar */}
-                <div className="w-full h-2 bg-gray-900/80 border border-gray-700 rounded overflow-hidden">
-                    <div
-                        className="h-full bg-[#00FFFF] transition-all duration-200"
-                        style={{ width: `${xpPercent}%` }}
-                    />
+                <div className="flex justify-between items-end">
+                    {/* Level & XP */}
+                    <div className="flex flex-col gap-1">
+                        <div className="flex justify-between text-[10px] font-mono text-[#00FFFF] lowercase tracking-tighter">
+                            <span>lv.{stats.level}</span>
+                            <span>{Math.floor(stats.xp)}/{stats.xpToNextLevel}</span>
+                        </div>
+                        <div className="w-48 h-1 bg-black/40 border border-[#00FFFF]/30">
+                            <div
+                                className="h-full bg-[#00FFFF] shadow-[0_0_10px_#00FFFF]"
+                                style={{ width: `${(stats.xp / stats.xpToNextLevel) * 100}%` }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* [CORE LOOP] 3-Minute Timer */}
+                    <div className="flex flex-col items-center ml-4">
+                        <div className={`text-2xl font-black tracking-tighter ${stats.matchTimer < 30 ? 'text-[#FF0000] animate-pulse' : 'text-[#FFD1A9]'}`}>
+                            {Math.floor((stats.matchTimer || 180) / 60)}:
+                            {String((stats.matchTimer || 180) % 60).padStart(2, '0')}
+                        </div>
+                        <div className="text-[8px] font-bold text-gray-500 tracking-widest -mt-1 uppercase">
+                            Remain Time
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

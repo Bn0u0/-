@@ -1,15 +1,23 @@
+export interface WeaponModifier {
+  id: string;
+  type: 'SPEED' | 'DAMAGE' | 'SPREAD' | 'PROJECTILE_COUNT' | 'PIERCE' | 'RICOCHET';
+  value: number;
+}
+
+export interface WeaponInstance {
+  id: string;
+  name: string;
+  baseType: 'MELEE_SWEEP' | 'HOMING_ORB' | 'SHOCKWAVE' | 'LASER' | 'BOOMERANG';
+  rarity: 'COMMON' | 'RARE' | 'LEGENDARY' | 'MYTHIC';
+  modifiers: WeaponModifier[];
+  level: number;
+}
 
 export type NetworkPacket =
-  | { type: 'START_MATCH'; payload: { mode: string; hero?: string } }
-  | { type: 'INPUT'; payload: { x: number; y: number } }
-  | {
-    type: 'STATE'; payload: {
-      c: { x: number; y: number; r: number };
-      d: { x: number; y: number; r: number };
-      s: { hp: number; sc: number; w: number; l: number };
-    }
-  }
-  | { type: 'GAME_OVER'; payload: { score: number } };
+  | { type: 'START_MATCH', payload: { mode: string, hero: string } }
+  | { type: 'INPUT', payload: { x: number, y: number } }
+  | { type: 'STATE', payload: any }
+  | { type: 'GAME_OVER', payload: any };
 
 export interface JoystickData {
   x: number;

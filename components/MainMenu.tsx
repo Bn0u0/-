@@ -121,9 +121,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onStartGame, onOpenHideout }
             <div className="relative z-10 flex flex-col items-center w-full max-w-md px-6">
                 <div className="mb-8 text-center transform transition-transform duration-300">
                     {/* Pastel Title */}
-                    <h1 className="text-6xl md:text-8xl font-black text-[#00FFFF] tracking-tighter drop-shadow-[2px_2px_0px_#FF00FF]" style={{ fontFamily: 'sans-serif' }}>
-                        SYNAPSE
+                    <h1 className="text-5xl md:text-6xl font-black text-[#00FFFF] tracking-tighter drop-shadow-[2px_2px_0px_#FF00FF]" style={{ fontFamily: 'sans-serif' }}>
+                        這才較割草
                     </h1>
+                    <p className="text-[#FF00FF] font-black tracking-widest mt-2">就3分鐘 別貪!快撤</p>
                 </div>
 
                 {/* Character Selector */}

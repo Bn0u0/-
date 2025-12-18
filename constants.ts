@@ -1,31 +1,23 @@
-// Amber-Glitch Palette (Strategic Partner: Neon-Candy)
 export const COLORS = {
-  bg: 0x1b191f,          // Dark Warm Grey (Not pure black)
-  shadow: 0x2d1b2e,      // Deep Purple Shadow (Eastward)
-  ambient: 0x555060,     // Warm Grey Ambient (Eastward)
+  // 60% Base: Warm Apocalypse (Eastward)
+  bg: 0x2D1B2E,          // World BG (Deep Purple)
+  ambient: 0x665566,     // Warm Grey Ambient
+  heroLight: 0xFFD1A9,   // 3500K Tungsten
+  shadow: 0x1B1020,      // Deep Shadow (Not pure black)
 
-  primary: 0x54fcfc,     // Drifter Cyan (Hero) - Kept for contrast
-  secondary: 0xff0055,   // Magenta (Enemy)
-  accent: 0xffe736,      // Gold/Electric
+  // 30% Core: Tactical Chibi (Cult of the Lamb)
+  primary: 0x00FFFF,     // Cyan (Main Player Color)
+  secondary: 0xFF00FF,   // Magenta (Enemy Color)
+  accent: 0xFFD700,      // Gold (UI/Loot)
 
-  // Glitch Layer (Atomicrops)
-  glitchA: 0x00ff00,     // Neon Green
-  glitchB: 0xff00ff,     // Neon Pink
-
-  // Environment (Warm/Cozy)
-  floor: 0x231e26,       // Warm Dark Floor
-  wallTop: 0x3e3542,     // Lighter Warm Grey
-  wallSide: 0x16101a,    // Deepest Warm Shadow
-
-  // UI
-  health: 0xff0055,      // Magenta
-  shield: 0x54fcfc,      // Cyan
-  xp: 0xffe736,          // Gold
-  text: '#eddbda',       // Dust White
+  // 10% Glitch: Pop (Atomicrops)
+  glitchCyan: 0x00FFFF,
+  glitchMagenta: 0xFF00FF,
 
   // Legacy mapping
   white: 0xFFFFFF,
-  grid: 0x3e3542
+  black: 0x000000,
+  text: '#eddbda'
 };
 
 export const PHYSICS = {

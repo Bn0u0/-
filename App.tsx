@@ -90,27 +90,22 @@ const App: React.FC = () => {
 
     // Called from MainMenu
     const handleStartGame = (role: string) => {
-        // Start Game
-        metaGame.startMatch(); // Reset state
+        console.log("🚀 [App] COMMAND: START_MATCH");
+
+        // 1. 重置 Meta 狀態
+        metaGame.startMatch();
+
+        // 2. 切換 UI 狀態
         setAppState('COMBAT');
 
-        // STRATEGY: Double Tap
-        // 1. Optimistic: Assume Scene is ready (Preloaded).
-        console.log("🚀 [App] Optimistic Start Command");
-        EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
-
-        // 2. Reactive: If Scene wasn't ready, it will emit SCENE_READY soon.
-        // We catch it and fire again to ensure it didn't miss the first one.
-        const onSceneReady = () => {
-            console.log("🚀 [App] Reactive Start Command (Scene just got ready)");
+        // 3. [FIX] 暴力啟動指令
+        // 不再監聽 SCENE_READY。假設 Phaser 已經在背景跑了。
+        // 給 100ms 讓 DOM 切換完成 (隱藏 Menu -> 顯示 GameDiv)
+        setTimeout(() => {
             EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
-            // Clean up listener immediately
-            EventBus.off('SCENE_READY', onSceneReady);
-        };
-
-        // Listen for up to 5 seconds, then give up (to avoid zombie listeners)
-        EventBus.on('SCENE_READY', onSceneReady);
-        setTimeout(() => EventBus.off('SCENE_READY', onSceneReady), 5000);
+            // 強制送一個 resize 事件給 Phaser，確保它知道現在視窗變大了
+            window.dispatchEvent(new Event('resize'));
+        }, 100);
     };
 
     // Called from Hideout -> Deploy

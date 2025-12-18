@@ -1,273 +1,70 @@
-/* App.css - Project Synapse: Meta Shell (Mobile Native) */
-:root {
-    /* HLD Palette */
-    --hld-bg: #0e0d16;
-    --hld-cyan: #00FFFF;
-    --hld-magenta: #FF0055;
-    --hld-yellow: #FFD700;
-    --hld-glass: rgba(20, 20, 30, 0.85);
-
-    /* iOS Physics */
-    --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    --ease-ios: cubic-bezier(0.25, 0.1, 0.25, 1);
-
-    --font-family: 'Rajdhani', 'Orbitron', sans-serif;
-}
-
-body {
+/* App.css - 強制全屏重置 */
+html,
+body,
+#root {
+    width: 100%;
+    height: 100%;
     margin: 0;
     padding: 0;
-    background-color: var(--hld-bg);
-    font-family: var(--font-family);
-    color: white;
     overflow: hidden;
-    user-select: none;
-    -webkit-touch-callout: none;
-    /* Mobile Safe Area */
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
+    /* 禁止捲動 */
+    background-color: #000;
+    /* 防止加載時閃白 */
     touch-action: none;
+    /* 禁止手機預設的雙擊縮放 */
 }
 
-/* UX Primitive: Tech Button */
-.tech-btn {
-    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-    background: rgba(0, 255, 255, 0.1);
-    border: 1px solid var(--hld-cyan);
-    color: var(--hld-cyan);
-    padding: 12px 24px;
-    font-weight: bold;
-    letter-spacing: 2px;
-    transition: all 0.1s var(--ease-ios);
-    /* Faster for mobile */
-    touch-action: manipulation;
-    position: relative;
-    overflow: hidden;
-    cursor: pointer;
-    text-transform: uppercase;
-    font-family: var(--font-family);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    outline: none;
-}
-
-/* Tactile Feedback */
-.tech-btn:active {
-    transform: scale(0.95);
-    background: rgba(0, 255, 255, 0.3);
-    box-shadow: 0 0 15px var(--hld-cyan);
-}
-
-.tech-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    filter: grayscale(1);
-}
-
-/* Utility: Scanlines */
-@keyframes scanline {
-    0% {
-        transform: translateY(0);
-    }
-
-    100% {
-        transform: translateY(100vh);
-    }
-}
-
-.scanlines {
+.app-container {
+    width: 100%;
+    height: 100%;
     position: absolute;
     top: 0;
     left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.1) 50%, rgba(0, 0, 0, 0.1));
-    background-size: 100% 4px;
-    pointer-events: none;
-    z-index: 1;
+    overflow: hidden;
 }
 
-/* Animations */
-@keyframes glitch {
-    0% {
-        transform: translate(0);
-    }
-
-    20% {
-        transform: translate(-2px, 2px);
-    }
-
-    40% {
-        transform: translate(-2px, -2px);
-    }
-
-    60% {
-        transform: translate(2px, 2px);
-    }
-
-    80% {
-        transform: translate(2px, -2px);
-    }
-
-    100% {
-        transform: translate(0);
-    }
+/* 確保遊戲容器絕對定位並填滿 */
+#game-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 0;
 }
 
-/* Main Menu Styles */
-@keyframes pulse {
-    from {
-        box-shadow: 0 0 10px var(--hld-magenta);
-        transform: scale(1);
-    }
-
-    to {
-        box-shadow: 0 0 25px var(--hld-magenta);
-        transform: scale(1.02);
-    }
-}
-
-.hero-button {
-    width: 280px;
-    height: 80px;
-    background: linear-gradient(90deg, var(--hld-magenta), #ff0055aa);
-    clip-path: polygon(20px 0, 100% 0, 100% 60px, calc(100% - 20px) 100%, 0 100%, 0 20px);
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.5rem;
-    color: white;
-    text-shadow: 0 0 10px white;
-    animation: pulse 1s infinite alternate;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-bottom: 2rem;
-    transition: transform 0.05s, filter 0.05s;
-    /* Snappy */
-}
-
-.hero-button:active {
-    transform: scale(0.95);
-    filter: brightness(1.2);
-}
-
-.sub-link {
-    font-size: 0.8rem;
-    color: var(--hld-cyan);
-    opacity: 0.7;
-    text-decoration: underline;
-    margin-top: 20px;
-    cursor: pointer;
-    transition: opacity 0.2s;
-}
-
-.sub-link:active {
-    opacity: 1;
-    transform: scale(0.98);
-}
-
-/* OVERLAYS */
-.scanline-overlay {
+/* 故障掃描線效果 (保留) */
+.scanlines {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15) 1px, transparent 1px, transparent 2px);
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to bottom,
+            rgba(255, 255, 255, 0),
+            rgba(255, 255, 255, 0) 50%,
+            rgba(0, 0, 0, 0.1) 50%,
+            rgba(0, 0, 0, 0.1));
+    background-size: 100% 4px;
     pointer-events: none;
-    z-index: 9998;
-    animation: scanlineScroll 10s linear infinite;
+    z-index: 50;
+    opacity: 0.3;
 }
 
 .noise-overlay {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
-    pointer-events: none;
-    z-index: 9999;
-    opacity: 0.05;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E");
-}
-
-@keyframes scanlineScroll {
-    0% {
-        background-position: 0 0;
-    }
-
-    100% {
-        background-position: 0 100%;
-    }
-}
-
-/* GLITCH TEXT UTILITY */
-.glitch-text {
-    position: relative;
-    animation: glitch-skew 1s infinite linear alternate-reverse;
-}
-
-.glitch-text::before,
-.glitch-text::after {
-    content: attr(data-text);
-    position: absolute;
-    top: 0;
-    left: 0;
     width: 100%;
     height: 100%;
+    background-image: url('/assets/ui/noise.png');
+    /* 確保你有這張圖，沒有的話這行會無效但不報錯 */
+    opacity: 0.05;
+    pointer-events: none;
+    z-index: 51;
 }
 
-.glitch-text::before {
-    left: 2px;
-    text-shadow: -1px 0 #ff00c1;
-    clip: rect(44px, 450px, 56px, 0);
-    animation: glitch-anim 5s infinite linear alternate-reverse;
-}
-
-.glitch-text::after {
-    left: -2px;
-    text-shadow: -1px 0 #00fff9;
-    clip: rect(44px, 450px, 56px, 0);
-    animation: glitch-anim2 5s infinite linear alternate-reverse;
-}
-
-/* Shortened Glitch Anims to save space, assuming they are standard */
-@keyframes glitch-anim {
-    0% {
-        clip: rect(31px, 9999px, 91px, 0);
-        transform: skew(0.85deg);
-    }
-
-    100% {
-        clip: rect(82px, 9999px, 86px, 0);
-        transform: skew(0.18deg);
-    }
-}
-
-@keyframes glitch-anim2 {
-    0% {
-        clip: rect(29px, 9999px, 86px, 0);
-        transform: skew(0.06deg);
-    }
-
-    100% {
-        clip: rect(48px, 9999px, 83px, 0);
-        transform: skew(0.82deg);
-    }
-}
-
-@keyframes glitch-skew {
-    0% {
-        transform: skew(2deg);
-    }
-
-    100% {
-        transform: skew(1deg);
-    }
+/* 你的其他 UI 樣式 ... */
+.hero-button {
+    @apply px-8 py-4 bg-[#00FFFF] text-black font-black tracking-widest text-xl uppercase skew-x-[-10deg] hover:bg-white hover:scale-105 transition-transform;
 }

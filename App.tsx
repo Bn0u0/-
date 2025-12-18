@@ -94,10 +94,23 @@ const App: React.FC = () => {
         metaGame.startMatch(); // Reset state
         setAppState('COMBAT');
 
-        // HOTFIX: Game is preloaded/persistent, so SCENE_READY has likely already fired.
-        // Don't wait for it. Just send the command.
-        console.log("🚀 [App] Immediate Start Match Dispatch");
+        // STRATEGY: Double Tap
+        // 1. Optimistic: Assume Scene is ready (Preloaded).
+        console.log("🚀 [App] Optimistic Start Command");
         EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
+
+        // 2. Reactive: If Scene wasn't ready, it will emit SCENE_READY soon.
+        // We catch it and fire again to ensure it didn't miss the first one.
+        const onSceneReady = () => {
+            console.log("🚀 [App] Reactive Start Command (Scene just got ready)");
+            EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
+            // Clean up listener immediately
+            EventBus.off('SCENE_READY', onSceneReady);
+        };
+
+        // Listen for up to 5 seconds, then give up (to avoid zombie listeners)
+        EventBus.on('SCENE_READY', onSceneReady);
+        setTimeout(() => EventBus.off('SCENE_READY', onSceneReady), 5000);
     };
 
     // Called from Hideout -> Deploy

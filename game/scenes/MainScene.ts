@@ -19,6 +19,7 @@ import { CombatManager } from '../managers/CombatManager';
 import { TerrainManager } from '../managers/TerrainManager';
 import { PlayerFactory } from '../factories/PlayerFactory';
 import { InputSystem } from '../systems/InputSystem';
+import { EffectManager } from '../managers/EffectManager';
 
 type GameMode = 'SINGLE' | 'MULTI';
 
@@ -71,6 +72,7 @@ export class MainScene extends Phaser.Scene {
     private combatManager!: CombatManager;
     public terrainManager!: TerrainManager;
     private inputSystem!: InputSystem;
+    private effectManager!: EffectManager;
 
     // Player Choice
     private myClass: string = 'BLADE'; // Default to new class ID
@@ -189,15 +191,37 @@ export class MainScene extends Phaser.Scene {
         this.powerupService = new PowerupService(this);
         this.lootService = new LootService(this);
 
-        // Managers & Systems
+        this.effectManager = new EffectManager(this); // Init First
+        this.terrainManager = new TerrainManager(this);
+        this.terrainManager.generateWorld();
+
         this.weaponSystem = new WeaponSystem(this);
         this.inputSystem = new InputSystem(this);
-        this.waveManager = new WaveManager(this, this.enemyGroup);
-        this.extractionManager = new ExtractionManager(this, this.worldWidth, this.worldHeight);
-        this.combatManager = new CombatManager(this);
-        this.terrainManager = new TerrainManager(this);
-        // PlayerFactory is static now, no instance needed
 
+        this.combatManager = new CombatManager(this);
+        this.extractionManager = new ExtractionManager(this, this.worldWidth, this.worldHeight);
+
+        this.powerupService = new PowerupService(this);
+        this.lootService = new LootService(this);
+
+        // Note: enemyGroup is usually initialized by WaveManager? 
+        // Checking WaveManager: it takes enemyGroup. 
+        // But MainScene decl has it as `private enemyGroup: Group | null = null`.
+        // Let's create it here if null to be safe, or let WaveManager create it?
+        // WaveManager.ts: "private enemyGroup: Group;", constructor(scene, enemyGroup) { this.enemyGroup = enemyGroup ... }
+        // So we must pass a group.
+        if (!this.enemyGroup) this.enemyGroup = this.add.group();
+        this.waveManager = new WaveManager(this, this.enemyGroup);
+
+        // Re-implement Boss Panic via EventBus
+        EventBus.on('BOSS_SPAWN', () => {
+            this.effectManager.showPanicOverlay();
+        });
+
+        // Input Events
+        EventBus.on('JOYSTICK_MOVE', (vec: { x: number, y: number }) => this.inputSystem.setVirtualAxis(vec.x, vec.y));
+        EventBus.on('JOYSTICK_AIM', (data: { x: number, y: number, isFiring: boolean }) => this.inputSystem.setVirtualAim(data.x, data.y, data.isFiring));
+        EventBus.on('JOYSTICK_SKILL', (skill: string) => this.inputSystem.triggerSkill(skill));
 
         this.extractionManager.setTerrainManager(this.terrainManager);
 
@@ -285,100 +309,6 @@ export class MainScene extends Phaser.Scene {
             }
         });
 
-        // V5.0 Boss Spawn + V5.1 Panic Theater
-        EventBus.on('BOSS_SPAWN', () => {
-            this.extractionManager.setLocked(true);
-
-            // 1. Visual Glitch (Shake + RGB Shift simulation via cam offset)
-            this.cameras.main.shake(500, 0.02);
-            this.cameras.main.flash(500, 255, 0, 0); // Red Flash
-
-            // 2. Alert Red Filter (Overlay)
-            const overlay = this.add.rectangle(0, 0, this.worldWidth, this.worldHeight, 0xFF0000, 0.2)
-                .setOrigin(0, 0).setDepth(1000).setScrollFactor(0);
-            this.tweens.add({
-                targets: overlay,
-                alpha: { from: 0.1, to: 0.3 },
-                duration: 500,
-                yoyo: true,
-                repeat: -1,
-                onDestroy: () => overlay.destroy() // Cleanup handled by listener cleanup or boss death? 
-                // Currently Boss Death event needs to clean this up. 
-                // For now, let's keep it for 5 seconds as "Initial Panic" or store reference.
-            });
-            // Store panic reference? Or just let it run for a bit?
-            // "Overall tint turn to Alert Red Filter". Let's persist until death ideally.
-            // Simplified: Flash red strongly, then keep subtle red tint.
-            this.time.delayedCall(5000, () => overlay.destroy()); // Temporary panic for now
-
-            // 3. Audio Panic (Heartbeat) - Simulating by ducking volume?
-            // this.sound.volume = 0.2; 
-            // Play alarm if available
-
-            const txt = this.add.text(this.cameras.main.width / 2, 200, "WARNING: SECTOR LOCKED\nKILL THE GUARDIAN", {
-                fontSize: '40px', color: '#FF0000', fontStyle: 'bold', align: 'center', stroke: '#000', strokeThickness: 6
-            }).setOrigin(0.5).setScrollFactor(0).setDepth(2001);
-
-            this.tweens.add({ targets: txt, alpha: 0, duration: 5000, delay: 1000, onComplete: () => txt.destroy() });
-        });
-
-        EventBus.on('SHOW_FLOATING_TEXT', (data: any) => {
-            const txt = this.add.text(data.x, data.y, data.text, {
-                fontSize: '20px', color: data.color, fontStyle: 'bold', stroke: '#000', strokeThickness: 2
-            }).setOrigin(0.5).setDepth(2000);
-
-            this.tweens.add({
-                targets: txt,
-                y: data.y - 50,
-                alpha: 0,
-                duration: 1000,
-                onComplete: () => txt.destroy()
-            });
-        });
-        EventBus.on('DIRECTOR_STATE_CHANGE', (data: any) => {
-            // Show Toast
-            const txt = this.add.text(this.cameras.main.width / 2, 100, `WARNING: ${data.msg}`, {
-                fontSize: '32px', color: '#ff00ff', stroke: '#000', strokeThickness: 4, fontStyle: 'bold'
-            }).setOrigin(0.5).setScrollFactor(0).setDepth(2000);
-
-            this.tweens.add({
-                targets: txt,
-                alpha: 0,
-                duration: 4000,
-                onComplete: () => txt.destroy()
-            });
-        });
-
-        EventBus.on('EXTRACTION_STATE_CHANGE', (state: string) => {
-            let msg = '';
-            let color = '#ffffff';
-
-            if (state === 'WARNING') {
-                msg = '⚠️ EXTRACTION SIGNAL DETECTED ⚠️';
-                color = '#FFFF00';
-            } else if (state === 'OPEN') {
-                msg = '>>> EXTRACTION POINTS ACTIVE <<<';
-                color = '#00FF00';
-            } else if (state === 'CLOSED') {
-                msg = 'SIGNAL LOST... RECALIBRATING';
-                color = '#FF0000';
-            }
-
-            if (msg) {
-                const txt = this.add.text(this.cameras.main.width / 2, 200, msg, {
-                    fontSize: '24px', color: color, stroke: '#000', strokeThickness: 4, fontStyle: 'bold'
-                }).setOrigin(0.5).setScrollFactor(0).setDepth(2000);
-
-                this.tweens.add({
-                    targets: txt, alpha: 0, duration: 5000, onComplete: () => txt.destroy()
-                });
-            }
-        });
-
-        // Input Events
-        EventBus.on('JOYSTICK_MOVE', (vec: { x: number, y: number }) => this.inputSystem.setVirtualAxis(vec.x, vec.y));
-        EventBus.on('JOYSTICK_AIM', (data: { x: number, y: number, isFiring: boolean }) => this.inputSystem.setVirtualAim(data.x, data.y, data.isFiring));
-        EventBus.on('JOYSTICK_SKILL', (skill: string) => this.inputSystem.triggerSkill(skill));
 
         // Skill Trigger from InputSystem
         this.events.on('TRIGGER_SKILL', (skill: string) => {
@@ -632,22 +562,7 @@ export class MainScene extends Phaser.Scene {
             inventoryService.processLootBag(this.myUnit.lootBag.map(i => i.id)); // Save Loot
 
             // JUICE: Confetti Explosion
-            const count = 200;
-            const defaults = {
-                origin: { y: 0.7 }
-            };
-
-            function fire(particleRatio: number, opts: any) {
-                confetti(Object.assign({}, defaults, opts, {
-                    particleCount: Math.floor(count * particleRatio)
-                }));
-            }
-
-            fire(0.25, { spread: 26, startVelocity: 55 });
-            fire(0.2, { spread: 60 });
-            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
-            fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
-            fire(0.1, { spread: 120, startVelocity: 45 });
+            this.effectManager.triggerConfetti();
         }
 
         // Loot List
@@ -739,11 +654,7 @@ export class MainScene extends Phaser.Scene {
                 inventoryService.addCredits(10); // 10 Credits per scrap
                 loot.destroy();
 
-                // Float Text
-                const txt = this.add.text(player.x, player.y - 40, `+10 CR`, {
-                    fontSize: '12px', color: '#ffff00', fontStyle: 'bold'
-                }).setOrigin(0.5);
-                this.tweens.add({ targets: txt, y: player.y - 80, alpha: 0, duration: 800, onComplete: () => txt.destroy() });
+                EventBus.emit('LOOT_PICKUP_VISUAL', { x: player.x, y: player.y, text: '+10 CR', color: '#ffff00' });
                 return;
             }
 
@@ -754,15 +665,9 @@ export class MainScene extends Phaser.Scene {
                 player.recalculateStats(); // V4.0
                 this.events.emit('LOOT_PICKUP', def);
 
-                const txt = this.add.text(player.x, player.y - 50, `+${def.name}`, {
-                    fontSize: '16px', color: '#00ffff', stroke: '#000', strokeThickness: 2
-                }).setOrigin(0.5);
-                this.tweens.add({
-                    targets: txt, y: player.y - 100, alpha: 0, duration: 1000, onComplete: () => txt.destroy()
-                });
+                EventBus.emit('LOOT_PICKUP_VISUAL', { x: player.x, y: player.y, text: `+${def.name}`, color: '#00ffff' });
             } else {
                 // Bag Full Feedback
-                // Optional: Show "BAG FULL" text once
             }
         });
     }

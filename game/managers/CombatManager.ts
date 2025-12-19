@@ -36,9 +36,6 @@ export class CombatManager {
         const duration = 2000;
 
         const p = this.projectilePool.get(x, y, angle, speed, duration, color, damage, ownerId);
-
-        // The projectile is already added to this.projectiles group when created by the pool factory.
-        // The pool's get method will call onEnable, which sets active/visible.
     }
 
     public update(time: number, delta: number) {
@@ -46,10 +43,6 @@ export class CombatManager {
         const children = this.projectiles.getChildren() as Projectile[];
         for (let i = children.length - 1; i >= 0; i--) {
             const p = children[i];
-
-            // Projectile.update() sets active=false when its lifespan runs out.
-            // We check for inactive projectiles that are still in the group
-            // and release them back to the pool.
             if (!p.active) {
                 this.projectilePool.release(p);
             }
@@ -76,19 +69,42 @@ export class CombatManager {
                 color: kill ? '#FFAA00' : '#FFFFFF'
             });
 
+            // [CORE LOOP] Juice Injection
+            // 1. Hit Stop
+            const hitStopDuration = (projectile.damage > 20) ? 50 : 10;
+            try {
+                if (!this.scene.physics.world.isPaused) {
+                    this.scene.physics.pause();
+                    this.scene.time.delayedCall(hitStopDuration, () => {
+                        this.scene.physics.resume();
+                    });
+                }
+            } catch (err) {
+                // Ignore
+            }
+
+            // 2. Flash
+            e.setTintFill(0xFFFFFF);
+            this.scene.time.delayedCall(50, () => {
+                e.clearTint();
+            });
+
+            // 3. Knockback
+            if (e.body && !kill) {
+                // Fix: Type safe vector usage
+                const projBody = projectile.body;
+                const vx = projBody?.velocity?.x || 0;
+                const vy = projBody?.velocity?.y || 0;
+
+                const velocity = new Phaser.Math.Vector2(vx, vy).normalize();
+                const force = 300;
+
+                e.setMaxVelocity(1000);
+                e.setVelocity(velocity.x * force, velocity.y * force);
+            }
+
             if (kill) {
                 this.scene.cameras.main.shake(50, 0.005);
-                this.scene.hitStop(60); // Heavier feel on kill
-            } else {
-                this.scene.hitStop(20); // Light nudge on hit
-
-                // [JUICE] Wave 9: Enemy Knockback
-                if (e.body) {
-                    const angle = projectile.rotation;
-                    const force = 150;
-                    e.body.velocity.x += Math.cos(angle) * force;
-                    e.body.velocity.y += Math.sin(angle) * force;
-                }
             }
 
             projectile.destroy();
@@ -103,7 +119,6 @@ export class CombatManager {
                 if (!player) return;
                 const dist = Phaser.Math.Distance.Between(enemy.x, enemy.y, player.x, player.y);
                 if (dist < 30) {
-                    // Simple melee hit check
                     const p = player as any;
                     if (!p.shielded) {
                         onPlayerDamaged(10);

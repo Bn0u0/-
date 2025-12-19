@@ -6,7 +6,7 @@ export const T0_WEAPONS: ItemDef[] = [
         name: '幸運撬棍',
         type: 'WEAPON',
         tier: 0,
-        baseStats: { damage: 15, range: 60, fireRate: 400 },
+        baseStats: { damage: 15, range: 60, fireRate: 400, knockback: 300 },
         affinity: { classes: ['SCAVENGER', 'RONIN'], bonusStats: { critAdd: 0.1 } }, // 拾荒者系加成
         icon: 'icon_scrap_metal',
         behavior: 'MELEE_SWEEP'

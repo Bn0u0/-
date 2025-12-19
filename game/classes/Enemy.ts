@@ -1,7 +1,5 @@
 import Phaser from 'phaser';
 import { Player } from './Player';
-import { MainScene } from '../scenes/MainScene'; // Module B Dependency
-import { COLORS } from '../../constants';
 import { IPoolable } from '../core/ObjectPool';
 import { EnemyConfig } from '../factories/EnemyFactory';
 
@@ -10,49 +8,42 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
     declare public body: Phaser.Physics.Arcade.Body;
     public isDead: boolean = false;
 
-    // Config & Stats
-    public config: EnemyConfig | null = null;
+    // Core Stats
     public hp: number = 10;
     public maxHp: number = 10;
     public speed: number = 100;
     public damage: number = 10;
     public value: number = 10;
 
-    // AI State
-    private aiState: 'IDLE' | 'CHASE' | 'WINDUP' | 'DASH' | 'RECOVER' = 'CHASE';
-    private aiTimer: number = 0;
-    private target: Player | null = null;
+    // Operation Extinction: New Meta
+    public faction: string = 'NONE'; // 'RUSTED' | 'GLITCHED' | 'OVERGROWN'
+    public tier: number = 0;
 
-    // Visuals (Hierarchical)
-    protected graphics: Phaser.GameObjects.Graphics; // Main Body
-    protected subPart: Phaser.GameObjects.Graphics;  // Moving Part (Ring, Legs)
+    // Components
+    protected graphics: Phaser.GameObjects.Graphics;
     protected shadow: Phaser.GameObjects.Ellipse;
 
-    // 2.5D
-    public z: number = 0;
-    public zVelocity: number = 0;
+    // Context
+    private _scene: Phaser.Scene;
+    private target: Player | null = null;
 
-    private _scene: Phaser.Scene; // [FIX] Explicit Scene Reference
-
-    constructor(scene: Phaser.Scene, x: number, y: number) {
+    constructor(scene: Phaser.Scene, x: number, y: number, faction: string = 'RUSTED') {
         super(scene, x, y);
-        this._scene = scene; // Store it safely
-        this.id = Math.random().toString(36).substr(2, 9);
+        this._scene = scene;
+        this.id = Phaser.Utils.String.UUID();
+        this.faction = faction;
 
-        // Shadow
+        // 1. Shadow
         this.shadow = scene.add.ellipse(0, 0, 30, 10, 0x000000, 0.4);
         this.add(this.shadow);
 
-        // Sub Part (Behind or scalable)
-        this.subPart = scene.add.graphics();
-        this.add(this.subPart);
-
-        // Main Body
+        // 2. Main Visual Body (Placeholder Graphics)
         this.graphics = scene.add.graphics();
         this.add(this.graphics);
 
         scene.add.existing(this);
         scene.physics.world.enable(this);
+
         const body = this.body as Phaser.Physics.Arcade.Body;
         body.setCircle(20);
         body.setBounce(0.5);
@@ -61,367 +52,47 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
     }
 
     configure(config: EnemyConfig) {
-        this.config = config;
+        // Basic Stat Injection
         this.hp = config.stats.hp;
         this.maxHp = config.stats.hp;
         this.speed = config.stats.speed;
         this.damage = config.stats.damage;
         this.value = config.stats.value;
 
-        // Reset AI
-        this.aiState = 'CHASE';
-        this.aiTimer = 0;
+        // Visual Reset
+        this.graphics.clear();
+        this.graphics.fillStyle(config.stats.color, 1);
+        this.graphics.fillCircle(0, 0, config.stats.radius);
 
-        // Visuals
-        this.drawAlienArchitecture(config.id, config.stats.color, config.stats.radius);
-
-        // Physics Body
-        if (!this.body) {
-            this._scene.physics.world.enable(this); // Use _scene
-        }
+        // Physics Reset
         const body = this.body as Phaser.Physics.Arcade.Body;
         if (body) {
             body.setCircle(config.stats.radius, -config.stats.radius, -config.stats.radius);
         }
     }
 
-    private drawAlienArchitecture(id: string, color: number, radius: number) {
-        const g = this.graphics;
-        const sub = this.subPart;
-        g.clear();
-        sub.clear(); // Reset sub parts
-
-        // AMBER-GLITCH: 1px Dark Outline
-        g.lineStyle(1, COLORS.shadow, 1);
-        sub.lineStyle(1, COLORS.shadow, 1);
-
-        const dark = Phaser.Display.Color.IntegerToColor(color).darken(30).color;
-        const light = Phaser.Display.Color.IntegerToColor(color).lighten(30).color;
-
-        switch (id) {
-            case 'JELLY': // Blob
-                // Core
-                g.fillStyle(color, 1);
-                g.fillCircle(0, 0, radius * 0.6);
-                // Outer Shell (Translucent)
-                g.fillStyle(color, 0.3);
-                g.fillCircle(0, 0, radius);
-                // Shine
-                g.fillStyle(0xffffff, 0.8);
-                g.fillEllipse(-radius * 0.3, -radius * 0.3, radius * 0.4, radius * 0.2);
-                break;
-
-            case 'TRI_DART': // Rotating Pyramid
-                // We'll rotate the main graphics in update logic if needed, or subPart
-                g.fillStyle(color, 1);
-                g.fillTriangle(0, -radius, radius, radius, -radius, radius);
-                g.lineStyle(2, light, 1);
-                g.strokeTriangle(0, -radius, radius, radius, -radius, radius);
-                // Center Detail
-                g.fillStyle(0x000000, 1);
-                g.fillCircle(0, 0, 4);
-                break;
-
-            case 'SENTINEL': // Eye + Ring
-                // Ring (SubPart) - Handled in update for rotation
-                sub.lineStyle(3, color, 1);
-                sub.strokeCircle(0, 0, radius + 4);
-                sub.lineStyle(1, light, 0.5);
-                sub.strokeCircle(0, 0, radius + 8);
-                // Eye (Main)
-                g.fillStyle(0x111111, 1);
-                g.fillCircle(0, 0, radius);
-                g.lineStyle(2, color, 1);
-                g.strokeCircle(0, 0, radius);
-                // Pupil
-                g.fillStyle(0xff0000, 1);
-                g.fillRect(-4, -2, 8, 4);
-                break;
-
-            case 'CRAB': // Heavy Block
-                // Legs (SubPart)
-                sub.lineStyle(4, dark, 1);
-                // Static legs pose, animated in update?
-                // Let's just draw fixed legs for now, maybe twitch them
-                sub.beginPath();
-                sub.moveTo(-radius, 0); sub.lineTo(-radius * 1.5, radius);
-                sub.moveTo(radius, 0); sub.lineTo(radius * 1.5, radius);
-                sub.strokePath();
-
-                // Body
-                g.fillStyle(dark, 1);
-                g.fillRoundedRect(-radius, -radius * 0.8, radius * 2, radius * 1.6, 4);
-                // Top Plate
-                g.fillStyle(color, 1);
-                g.fillRoundedRect(-radius + 2, -radius * 0.8 + 2, radius * 2 - 4, radius * 1.6 - 4, 4);
-                break;
-
-            default:
-                g.fillStyle(color, 1);
-                g.fillCircle(0, 0, radius);
-                break;
-        }
-    }
-
-    // Called by MainScene update loop
     update(time: number, delta: number, player: Player) {
         if (this.isDead || !this.body) return;
-        if (!this.config) return;
-
-        // --- ANIMATION UPDATES ---
-        if (this.config.id === 'TRI_DART') {
-            this.rotation += 0.05; // Spin entire body
-        }
-        else if (this.config.id === 'SENTINEL') {
-            this.subPart.rotation -= 0.02; // Spin ring counter-clockwise
-            // Face player logic overrides body rotation?
-            // Sentinel usually faces player. The body rotation will be set by behavior.
-            // But subPart is a child, so it rotates relative to body. 
-            // If body rotates to face player, ring rotates relative to that.
-        }
-        else if (this.config.id === 'JELLY') {
-            // Squish effect
-            const scale = 1 + Math.sin(time / 150) * 0.1;
-            this.setScale(scale, 1 / scale);
-        }
-
         this.target = player;
 
-        const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
+        // [OPERATION EXTINCTION]
+        // Legacy AI is purged. 
+        // Entities are temporarily lobotomized.
 
-        // AI Behavior Switch
-        switch (this.config.ai.type) {
-            case 'CHASE':
-                this.behaviorChase(delta);
-                break;
-            case 'SWARM':
-                this.behaviorSwarm(delta, time);
-                break;
-            case 'DASH':
-                this.behaviorDash(delta, time, dist);
-                break;
-            case 'STRAFE':
-                this.behaviorStrafe(delta, time, dist);
-                break;
-            case 'FLEE':
-                this.behaviorFlee(delta, player);
-                break;
-            case 'STATIONARY':
-                this.body.setVelocity(0, 0);
-                this.rotation = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y) + Math.PI / 2;
-                break;
-            case 'ERRATIC':
-                this.behaviorErratic(delta, time);
-                break;
-            case 'SCAVENGE': // Module B
-                this.behaviorScavenge(delta, time);
-                break;
-            case 'EXTRICT': // Module B
-                this.behaviorExtrict(delta, time);
-                break;
-        }
-
-        // Depth Sort
+        // Basic physics damping
         this.setDepth(this.y);
-    }
-
-    // --- Behaviors ---
-
-    private behaviorChase(delta: number) {
-        if (!this.target) return;
-        this.scene.physics.moveToObject(this, this.target, this.speed);
-        this.rotation = this.body.velocity.angle() + Math.PI / 2;
-    }
-
-    private behaviorSwarm(delta: number, time: number) {
-        if (!this.target) return;
-        const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y);
-        const wobble = Math.sin(time * 0.005 + (this.x % 10)) * 0.5; // Simple hash for wobble
-
-        const velocity = new Phaser.Math.Vector2();
-        velocity.setToPolar(angle + wobble, this.speed);
-
-        this.body.setVelocity(velocity.x, velocity.y);
-        this.rotation = velocity.angle() + Math.PI / 2;
-    }
-
-    private behaviorDash(delta: number, time: number, dist: number) {
-        if (!this.target) return;
-        const interval = this.config?.ai.interval || 2000;
-
-        switch (this.aiState) {
-            case 'CHASE':
-                this.behaviorChase(delta);
-                this.aiTimer += delta;
-                if (this.aiTimer > interval && dist < 300) {
-                    this.aiState = 'WINDUP';
-                    this.aiTimer = 0;
-                    this.body.setVelocity(0, 0);
-                    this.scene.tweens.add({ targets: this, scale: 1.3, duration: 400, yoyo: true });
-                }
-                break;
-            case 'WINDUP':
-                this.aiTimer += delta;
-                this.rotation = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y) + Math.PI / 2;
-                if (this.aiTimer > 500) {
-                    this.aiState = 'DASH';
-                    this.aiTimer = 0;
-                    this.scene.physics.moveToObject(this, this.target, this.speed * 3);
-                }
-                break;
-            case 'DASH':
-                this.aiTimer += delta;
-                if (this.aiTimer > 300) {
-                    this.aiState = 'RECOVER';
-                    this.aiTimer = 0;
-                    this.body.setVelocity(0, 0);
-                }
-                break;
-            case 'RECOVER':
-                this.aiTimer += delta;
-                if (this.aiTimer > 1000) {
-                    this.aiState = 'CHASE';
-                    this.aiTimer = 0;
-                }
-                break;
-        }
-    }
-
-    private behaviorStrafe(delta: number, time: number, dist: number) {
-        if (!this.target) return;
-        const range = this.config?.ai.range || 200;
-
-        const angleToPlayer = Phaser.Math.Angle.Between(this.target.x, this.target.y, this.x, this.y);
-        const newAngle = angleToPlayer + (this.speed * 0.02 * delta / range);
-
-        const targetX = this.target.x + Math.cos(newAngle) * range;
-        const targetY = this.target.y + Math.sin(newAngle) * range;
-
-        this.scene.physics.moveTo(this, targetX, targetY, this.speed);
-        this.rotation = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y) + Math.PI / 2;
-    }
-
-    private behaviorFlee(delta: number, player: Player) {
-        const angle = Phaser.Math.Angle.Between(player.x, player.y, this.x, this.y);
-        const velocity = new Phaser.Math.Vector2();
-        velocity.setToPolar(angle + Math.PI, this.speed); // Variable name was inconsistent
-        this.body.setVelocity(velocity.x, velocity.y);
-        this.rotation = velocity.angle() + Math.PI / 2;
-    }
-
-    private behaviorErratic(delta: number, time: number) {
-        this.aiTimer += delta;
-        if (this.aiTimer > 500) {
-            this.aiTimer = 0;
-            const angle = Math.random() * Math.PI * 2;
-            const velocity = new Phaser.Math.Vector2();
-            velocity.setToPolar(angle, this.speed);
-            this.body.setVelocity(velocity.x, velocity.y);
-        }
-        this.rotation += 0.1;
-    }
-
-    // --- Module B: Advanced AI ---
-
-    private behaviorScavenge(delta: number, time: number) {
-        const scene = this.scene as MainScene;
-
-        // 1. Find Loot if no target or target invalid
-        // Note: We use 'target' property for Player usually, let's keep it that way.
-        // We'll calculate loot target dynamically or store it in a temp variable.
-        // Using a simple scan every 500ms
-
-        this.aiTimer += delta;
-        if (this.aiTimer > 500) {
-            this.aiTimer = 0;
-            // Scan for nearest Loot
-            let nearest: Phaser.GameObjects.Sprite | null = null;
-            let minDst = 1000;
-
-            scene.lootService.group.getChildren().forEach((child) => {
-                const item = child as Phaser.GameObjects.Sprite;
-                if (!item.active) return;
-                const dst = Phaser.Math.Distance.Between(this.x, this.y, item.x, item.y);
-                if (dst < minDst) {
-                    minDst = dst;
-                    nearest = item;
-                }
-            });
-
-            if (nearest) {
-                const item = nearest as Phaser.GameObjects.Sprite;
-                this.scene.physics.moveToObject(this, item, this.speed);
-                this.rotation = Phaser.Math.Angle.Between(this.x, this.y, item.x, item.y) + Math.PI / 2;
-
-                // Eat it if close
-                if (minDst < 30) {
-                    // Steal it!
-                    scene.events.emit('LOOT_PICKUP_VISUAL', { x: this.x, y: this.y, text: "STOLEN!", color: '#ff0000' });
-                    item.destroy();
-                    // Then Run Away? Switch to Extractor?
-                    // For now, just heal
-                    this.hp = Math.min(this.hp + 10, this.maxHp);
-                }
-            } else {
-                // Idle / Wander if no loot
-                this.behaviorErratic(delta, time);
-            }
-        }
-    }
-
-    private behaviorExtrict(delta: number, time: number) {
-        const scene = this.scene as MainScene;
-        const zones = scene.extractionManager.getZones(); // Need public getter? Using public property if avail
-
-        // Find nearest ACTIVE zone
-        let nearestZone = null;
-        let minDst = 9999;
-
-        // Assuming direct access or getter. Let's check ExtractionManager
-        // If unavailable, just Fleep towards center or wait.
-        if (zones && zones.length > 0) {
-            zones.forEach(z => {
-                const zone = z as Phaser.GameObjects.Zone; // Cast to access x,y
-                if (!zone.active) return;
-                const dst = Phaser.Math.Distance.Between(this.x, this.y, zone.x, zone.y);
-                if (dst < minDst) {
-                    minDst = dst;
-                    nearestZone = zone;
-                }
-            });
-        }
-
-        if (nearestZone) {
-            this.scene.physics.moveToObject(this, nearestZone, this.speed);
-            this.rotation = this.body.velocity.angle() + Math.PI / 2;
-
-            if (minDst < 50) {
-                // Escaped!
-                // Add Banked Value to logic? 
-                this.die();
-            }
-        }
     }
 
     public takeDamage(amount: number): boolean {
         this.hp -= amount;
 
-        // [JUICE] Hit Flash (Using Alpha/Scale Pop instead of Tint to avoid Graphics limit)
+        // Basic Feedback
         this.alpha = 0.5;
-        this.setScale(1.2);
-
-        this.scene.tweens.add({
-            targets: this, // Tween the container itself
+        this._scene.tweens.add({
+            targets: this,
             alpha: 1,
-            scaleX: 1,
-            scaleY: 1,
-            duration: 80,
-            ease: 'Back.out'
+            duration: 100
         });
-
-        // Knockback or Shake?
-        this.x += Math.random() * 4 - 2;
-        this.y += Math.random() * 4 - 2;
 
         if (this.hp <= 0) {
             this.die();
@@ -432,37 +103,27 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
 
     public die() {
         this.isDead = true;
-
-        // [JUICE] Death Explosion
-        const explosion = this.scene.add.graphics({ x: this.x, y: this.y });
-        explosion.setDepth(this.depth + 1);
-
-        const color = this.config?.stats.color || 0xFFFFFF;
-
-        // Draw 8-bit puff
-        for (let i = 0; i < 8; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const dist = Math.random() * 20;
-            const size = Math.random() * 10 + 5;
-
-            explosion.fillStyle(color, 0.8);
-            const px = Math.cos(angle) * dist;
-            const py = Math.sin(angle) * dist;
-            explosion.fillRect(px, py, size, size);
-        }
-
-        this.scene.tweens.add({
-            targets: explosion,
-            alpha: 0,
-            scale: 2,
-            duration: 300,
-            onComplete: () => explosion.destroy()
-        });
-
         this.setActive(false);
         this.setVisible(false);
         this.body.enable = false;
-        (this.scene as any).events.emit('ENEMY_KILLED', this);
+        (this._scene as any).events.emit('ENEMY_KILLED', this);
+    }
+
+    // [PROXY] Physics & Visuals Compat for CombatManager
+    public setTintFill(color: number) {
+        this.alpha = 0.5; // Fallback for Container
+    }
+
+    public clearTint() {
+        this.alpha = 1;
+    }
+
+    public setMaxVelocity(v: number) {
+        if (this.body) this.body.setMaxVelocity(v);
+    }
+
+    public setVelocity(x: number, y: number) {
+        if (this.body) this.body.setVelocity(x, y);
     }
 
     public onEnable() {
@@ -471,12 +132,7 @@ export class Enemy extends Phaser.GameObjects.Container implements IPoolable {
         this.isDead = false;
         if (this.body) this.body.enable = true;
         this.alpha = 1;
-        this.setScale(0);
-
-        // Use _scene for tweens to prevent crash
-        if (this._scene) {
-            this._scene.tweens.add({ targets: this, scaleX: 1, scaleY: 1, duration: 300, ease: 'Back.out' });
-        }
+        this.setScale(1);
     }
 
     public onDisable() {

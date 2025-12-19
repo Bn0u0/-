@@ -380,24 +380,13 @@ export class MainScene extends Phaser.Scene {
     fixedUpdate(time: number, delta: number) {
         if (!this.isGameActive || this.isPaused) return;
 
-        this.survivalTime += delta / 1000;
-        this.matchTimer -= delta / 1000;
-
-        // [CORE LOOP] 3-Minute Rule
-        if (this.matchTimer <= 0) {
-            this.matchTimer = 0;
-            this.gameOver(); // Match ends, didn't extract? 
-            return;
+        if (this.isGameActive && !this.isPaused) {
+            this.survivalTime += delta / 1000;
         }
 
-        if (this.matchTimer < 30 && time % 1000 < 50) {
-            EventBus.emit('SHOW_FLOATING_TEXT', {
-                x: this.cameras.main.centerX,
-                y: this.cameras.main.centerY - 100,
-                text: "⚠️ 時間不多了！快撤！",
-                color: '#FF0000'
-            });
-        }
+        // [OPERATION DUAL-TRACK]
+        // Timer Logic Purged.
+        // Game now runs indefinitely until Extraction or Death.
 
         this.processLocalInput(time);
 

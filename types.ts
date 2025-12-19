@@ -55,6 +55,7 @@ export interface ItemDef {
     fireRate: number;
     critChance?: number;
     speed?: number; // Added speed for projectile weapons
+    knockback?: number; // [NEW] Impact force
   };
 
   // [NEW] 共生相性 (Symbiosis)
@@ -146,4 +147,24 @@ export interface ItemStats {
   cdr?: number;
   crit?: number;
   luck?: number;
+}
+
+// [OPERATION DUAL-TRACK] Economy Definitions
+export interface Loadout {
+  mainWeapon: ItemInstance | null; // Primary Weapon (Growable)
+  module_1: ItemInstance | null;   // Active Skill / Passive
+  module_2: ItemInstance | null;
+}
+
+export interface Backpack {
+  slots: (ItemInstance | null)[]; // Fixed size array (e.g. 6)
+  capacity: number;
+}
+
+export interface PlayerProfile {
+  id: string;
+  credits: number;
+  loadout: Loadout;   // Risk: Damaged on Death
+  backpack: Backpack; // Risk: Lost on Death
+  stash: ItemInstance[]; // Safe: Banked
 }

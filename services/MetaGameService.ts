@@ -3,7 +3,7 @@ import { persistence } from './PersistenceService';
 import { EventBus } from './EventBus';
 import { PlayerProfile } from '../types';
 
-export type GameScreen = 'HIDEOUT' | 'GAME_LOOP' | 'GAME_OVER';
+export type GameScreen = 'HIDEOUT' | 'GAME_LOOP' | 'GAME_OVER' | 'ARSENAL';
 
 export interface MetaGameState {
     currentScreen: GameScreen;

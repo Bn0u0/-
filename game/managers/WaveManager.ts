@@ -57,14 +57,17 @@ export class WaveManager {
         // Create Drone
         const drone = new LootDrone(this.scene, x, y);
 
-        // Ensure it updates (since it's not in a group)
-        this.scene.events.on('update', (time: number, delta: number) => {
-            // Need a way to check if destroyed
-            if (drone.scene) {
-                // Basic check if still existing
-                drone.update(time, delta, (this.scene as any).commander);
+        // [FIX] Self-cleaning Update Listener to prevent Memory Leak
+        const updateListener = (time: number, delta: number) => {
+            if (drone.scene && drone.active) {
+                drone.tick(time, delta, (this.scene as any).commander);
+            } else {
+                // Drone destroyed or scene changed, remove listener
+                this.scene.events.off('update', updateListener);
+                // console.log("[WaveManager] Drone Listener Cleaned Up");
             }
-        });
+        };
+        this.scene.events.on('update', updateListener);
 
         console.log(`🚁 [WaveManager] Supply Drone deployed at ${x},${y}`);
     }

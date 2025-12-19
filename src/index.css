@@ -1,14 +1,53 @@
 /* 在檔案最上方加入或取代 */
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root {
+:root {
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* [Amber-Glitch Visual Core] */
+.crt-overlay {
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%,
+      rgba(0, 0, 0, 0.25) 50%);
+  background-size: 100% 4px;
+  /* 掃描線間隔 */
+  pointer-events: none;
+}
+
+/* 讓所有按鈕 Hover 時有 RGB 分離效果 */
+.btn-retro:hover {
+  text-shadow: 2px 0 #FF00FF, -2px 0 #00FFFF;
+}
+
+.glitch-text {
+  text-shadow: 2px 0 #FF0055, -2px 0 #00FFFF;
+}
+
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
   width: 100vw;
   height: 100vh;
-  overflow: hidden; /* 關鍵：禁止捲軸 */
+  overflow: hidden;
+  /* 關鍵：禁止捲軸 */
   background-color: #000;
-  touch-action: none; /* 關鍵：防止手機下拉刷新 */
+  touch-action: none;
+  /* 關鍵：防止手機下拉刷新 */
 }

@@ -5,9 +5,13 @@ import { GameOverlay } from './components/GameOverlay';
 import { VirtualJoystick } from './components/VirtualJoystick';
 import { Hideout } from './components/Hideout';
 import { BootScreen } from './components/BootScreen';
-import { MainMenu } from './components/MainMenu';
+// import { MainMenu } from './components/MainMenu'; // [REPLACED]
+import { HideoutScreen } from './components/screens/HideoutScreen';
+import { ArsenalScreen } from './components/screens/ArsenalScreen';
+import { AcquisitionModal } from './components/AcquisitionModal';
 import { metaGame, MetaGameState } from './services/MetaGameService';
 import { persistence, UserProfile } from './services/PersistenceService';
+import { inventoryService } from './services/InventoryService'; // [NEW] Import
 import { EventBus } from './services/EventBus';
 
 
@@ -55,11 +59,11 @@ const App: React.FC = () => {
                 const weapon = JSON.parse(atob(giftCode));
                 if (weapon && weapon.baseType) {
                     persistence.addInventory(weapon);
-                    alert(`🎁 已接收武器傳輸: ${weapon.name} [${weapon.rarity}] !`);
+                    alert(`🎁 已接收武器傳輸: ${weapon.name} [${weapon.rarity}]!`);
                 } else {
                     // Fallback to legacy full-save import
                     const result = persistence.importSaveString(giftCode);
-                    alert(result.success ? `存檔導入: ${result.msg}` : `導入失敗: ${result.msg}`);
+                    alert(result.success ? `存檔導入: ${result.msg} ` : `導入失敗: ${result.msg} `);
                 }
                 // Clean URL
                 window.history.replaceState({}, document.title, window.location.pathname);
@@ -102,8 +106,18 @@ const App: React.FC = () => {
         EventBus.on('GAME_OVER', onMissionEnd);
         EventBus.on('EXTRACTION_SUCCESS', onExtraction);
 
+        // [DEBUG] Expose for Console Testing
+        (window as any).metaGame = metaGame;
+        (window as any).inventoryService = inventoryService;
+        (window as any).EventBus = EventBus;
+
         return () => {
             unsubscribe();
+            // Clean up debug
+            delete (window as any).metaGame;
+            delete (window as any).inventoryService;
+            delete (window as any).EventBus;
+
             EventBus.off('SHOW_DRAFT', onShowDraft);
             EventBus.off('GAME_OVER', onMissionEnd);
             EventBus.off('EXTRACTION_SUCCESS', onExtraction);
@@ -151,41 +165,29 @@ const App: React.FC = () => {
         <div className="app-container relative w-full h-full overflow-hidden">
             {/* Background Effects */}
             <div className="scanlines" />
-            <div className={`noise-overlay ${appState === 'BOOT' ? 'opacity-10' : 'opacity-5'}`} />
+            <div className={`noise - overlay ${appState === 'BOOT' ? 'opacity-10' : 'opacity-5'} `} />
 
             {/* State: BOOT */}
             {appState === 'BOOT' && (
                 <BootScreen onStart={handleBootComplete} />
             )}
 
-            {/* State: MAIN_MENU (Instant Challenge) */}
-            {appState === 'MAIN_MENU' && (
-                <MainMenu
-                    onStartGame={handleStartGame}
-                    onOpenHideout={() => setAppState('HIDEOUT')}
-                />
-            )}
-
-            {/* Draft Overlay */}
-            {/* Draft Overlay - REMOVED */}
-            {/* {showDraft && (
-                <div className="hidden" />
-            )} */}
-
-            {/* State: HIDEOUT */}
-            {appState === 'HIDEOUT' && (
-                <div className="absolute inset-0 z-20 bg-[var(--hld-bg)]">
-                    <Hideout
-                        profile={profile}
-                        onDeploy={handleDeploy}
-                        onBack={() => setAppState('MAIN_MENU')}
-                    />
+            {/* State: MAIN_MENU / HIDEOUT (Unified) */}
+            {(appState === 'MAIN_MENU' || appState === 'HIDEOUT') && (
+                <div className="absolute inset-0 z-20 bg-amber-bg">
+                    {metaState.currentScreen === 'ARSENAL' ? (
+                        <ArsenalScreen />
+                    ) : (
+                        <HideoutScreen />
+                    )}
                 </div>
             )}
 
+            {/* Draft Overlay */}
+
             {/* State: COMBAT (Phaser Persistent) */}
             <div
-                className={`absolute inset-0 transition-opacity duration-1000 ${appState === 'COMBAT' ? 'opacity-100 z-10' : 'opacity-0 -z-10'}`}
+                className={`absolute inset - 0 transition - opacity duration - 1000 ${appState === 'COMBAT' ? 'opacity-100 z-10' : 'opacity-0 -z-10'} `}
                 style={{ visibility: appState === 'COMBAT' ? 'visible' : 'hidden' }}
             >
                 <PhaserGame />

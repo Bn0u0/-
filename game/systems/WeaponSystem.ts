@@ -145,6 +145,10 @@ export class WeaponSystem {
             // For now, let's spawn an invisible projectile at target to trigger collision logic
             // Or just make a homing particle
             const proj = this.scene.physics.add.sprite(source.x, source.y, 'tex_orb');
+
+            // [FIX] Attach Damage or it deals 0
+            (proj as any).damage = stats.damage;
+
             proj.setVisible(false);
             proj.body.setSize(10, 10);
             this.scene.physics.moveToObject(proj, target, 2000);

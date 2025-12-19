@@ -162,12 +162,18 @@ export interface Backpack {
   capacity: number;
 }
 
+export type TutorialStep = 'VOID' | 'TRIAL' | 'COMPLETE';
+
 export interface PlayerProfile {
-  id: string;
+  id: string; // [RESTORED]
   credits: number;
-  loadout: Loadout;   // Risk: Damaged on Death
-  backpack: Backpack; // Risk: Lost on Death
-  stash: ItemInstance[]; // Safe: Banked
+  inventory: string[]; // Item IDs
+  stash: ItemInstance[]; // [RESTORED]
+  loadout: Loadout;
+  backpack: Backpack; // [RESTORED]
+  tutorialStep: TutorialStep;
+  trialClassId: string | null;
+  unlockedClasses: string[]; // Class IDs
 }
 
 // ----------------------

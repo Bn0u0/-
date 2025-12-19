@@ -3,7 +3,7 @@ import { PlayerClassID } from '../../types';
 
 export interface ClassConfig {
     name: string;
-    // weapon: string; // Deprecated, handled by Player T0 Mapping for now
+    role: string; // [NEW] For UI
     stats: {
         hp: number;
         speed: number;
@@ -16,29 +16,32 @@ export const CLASSES: Record<PlayerClassID, ClassConfig> = {
     // TIER 1
     SCAVENGER: {
         name: '拾荒者',
+        role: 'SURVIVAL',
         stats: { hp: 120, speed: 1.1, markColor: 0xFFFF00, atk: 12 }
     },
     RANGER: {
         name: '遊俠',
+        role: 'DPS',
         stats: { hp: 100, speed: 1.2, markColor: 0xFF0000, atk: 10 }
     },
     WEAVER: {
         name: '織命者',
+        role: 'CONTROL',
         stats: { hp: 80, speed: 1.0, markColor: 0x0000FF, atk: 8 }
     },
 
     // TIER 2 (Placeholder for now)
-    RONIN: { name: '浪人', stats: { hp: 140, speed: 1.3, markColor: 0xFFFFFF, atk: 15 } },
-    SPECTRE: { name: '幽靈', stats: { hp: 80, speed: 1.5, markColor: 0xCCCCCC, atk: 18 } },
-    RAIDER: { name: '掠奪者', stats: { hp: 150, speed: 0.9, markColor: 0x880000, atk: 14 } },
+    RONIN: { name: '浪人', role: 'MELEE', stats: { hp: 140, speed: 1.3, markColor: 0xFFFFFF, atk: 15 } },
+    SPECTRE: { name: '幽靈', role: 'STEALTH', stats: { hp: 80, speed: 1.5, markColor: 0xCCCCCC, atk: 18 } },
+    RAIDER: { name: '掠奪者', role: 'TANK', stats: { hp: 150, speed: 0.9, markColor: 0x880000, atk: 14 } },
 
-    GUNNER: { name: '機槍手', stats: { hp: 110, speed: 1.0, markColor: 0xFF4400, atk: 12 } },
-    HUNTER: { name: '獵人', stats: { hp: 90, speed: 1.3, markColor: 0x00AA00, atk: 14 } },
-    TRAPPER: { name: '陷阱師', stats: { hp: 100, speed: 1.1, markColor: 0xAA6600, atk: 10 } },
+    GUNNER: { name: '機槍手', role: 'SUSTAIN', stats: { hp: 110, speed: 1.0, markColor: 0xFF4400, atk: 12 } },
+    HUNTER: { name: '獵人', role: 'SNIPER', stats: { hp: 90, speed: 1.3, markColor: 0x00AA00, atk: 14 } },
+    TRAPPER: { name: '陷阱師', role: 'TACTIC', stats: { hp: 100, speed: 1.1, markColor: 0xAA6600, atk: 10 } },
 
-    ARCHITECT: { name: '建築師', stats: { hp: 90, speed: 1.0, markColor: 0x0088FF, atk: 9 } },
-    WITCH: { name: '魔女', stats: { hp: 70, speed: 1.1, markColor: 0xCC00FF, atk: 16 } },
-    MEDIC: { name: '醫官', stats: { hp: 100, speed: 1.1, markColor: 0x00FF88, atk: 6 } }
+    ARCHITECT: { name: '建築師', role: 'BUILDER', stats: { hp: 90, speed: 1.0, markColor: 0x0088FF, atk: 9 } },
+    WITCH: { name: '魔女', role: 'MAGE', stats: { hp: 70, speed: 1.1, markColor: 0xCC00FF, atk: 16 } },
+    MEDIC: { name: '醫官', role: 'SUPPORT', stats: { hp: 100, speed: 1.1, markColor: 0x00FF88, atk: 6 } }
 };
 
 export class PlayerFactory {

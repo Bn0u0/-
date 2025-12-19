@@ -1,5 +1,5 @@
 import { Utils } from 'phaser';
-import { ItemInstance, ItemDef, ItemRarity, ItemStats, Loadout, Backpack, PlayerProfile } from '../types';
+import { ItemInstance, ItemDef, ItemRarity, ItemStats, Loadout, Backpack, PlayerProfile, TutorialStep } from '../types';
 import { ItemLibrary } from '../game/data/library/items';
 
 const STORAGE_KEY_V4 = 'SYNAPSE_NEO_INVENTORY_V4';
@@ -23,19 +23,56 @@ class InventoryService {
 
     private createDefaultProfile(): PlayerProfile {
         return {
-            id: 'USER_01',
-            credits: 100,
-            stash: [],
+            id: 'USER_01', // [RESTORED]
+            credits: 0,
+            inventory: ['W_T1_PISTA_01'], // Starter pistol
+            stash: [], // [RESTORED]
             loadout: {
-                mainWeapon: this.createItem('weapon_crowbar_t0'), // Freebie
+                mainWeapon: this.createItem('W_T1_PISTA_01'),
                 module_1: null,
                 module_2: null
             },
-            backpack: {
+            backpack: { // [RESTORED]
                 slots: Array(6).fill(null),
                 capacity: 6
-            }
+            },
+            tutorialStep: 'VOID',
+            trialClassId: null,
+            unlockedClasses: []
         };
+    }
+
+    public setTrialClass(classId: string) {
+        this.state.tutorialStep = 'TRIAL';
+        this.state.trialClassId = classId;
+        this.save();
+    }
+
+    public confirmTrial() {
+        if (this.state.trialClassId && !this.state.unlockedClasses.includes(this.state.trialClassId)) {
+            this.state.unlockedClasses.push(this.state.trialClassId);
+        }
+        this.state.tutorialStep = 'COMPLETE';
+        this.state.trialClassId = null;
+        this.save();
+    }
+
+    public rejectTrial() {
+        this.state.tutorialStep = 'VOID';
+        this.state.trialClassId = null;
+        this.save();
+    }
+
+    public isTutorialComplete(): boolean {
+        return this.state.tutorialStep === 'COMPLETE';
+    }
+
+    public getTutorialStep(): TutorialStep {
+        return this.state.tutorialStep;
+    }
+
+    public getTrialClass(): string | null {
+        return this.state.trialClassId;
     }
 
     // --- Helpers ---

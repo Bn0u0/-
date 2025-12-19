@@ -76,6 +76,15 @@ class MetaGameService {
     }
 
     public handleGameOver(score: number) {
+        // [ONBOARDING] Check Trial Step
+        const tutorialStep = inventoryService.getTutorialStep();
+        if (tutorialStep === 'TRIAL') {
+            console.log("[MetaGame] Trial Run Completed (Death/End). Triggering Trial Verdict.");
+            EventBus.emit('SHOW_TRIAL_END');
+            // Do NOT navigate to GAME_OVER. Stay in GAME_LOOP so GameOverlay (and its modal) remains visible.
+            return;
+        }
+
         // [DUAL-TRACK] Death Penalty
         const lostItemName = inventoryService.punishDeath(this.state.selectedHeroId);
 

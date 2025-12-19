@@ -1,48 +1,42 @@
 import Phaser from 'phaser';
 import { Player } from '../classes/Player';
 import { Enemy } from '../classes/Enemy';
-import confetti from 'canvas-confetti';
 import { COLORS, PHYSICS } from '../../constants';
 import { EventBus } from '../../services/EventBus';
-// import { UpgradeType } from '../../types'; // [VOID]
-import { network } from '../../services/NetworkService';
-// import { PowerupService, PowerupType } from '../../services/PowerupService'; // [ZOMBIE PURGE]
 import { LootService } from '../../services/LootService';
 import { inventoryService } from '../../services/InventoryService';
-import { persistence } from '../../services/PersistenceService';
-// import { cardSystem } from '../systems/CardSystem'; // [VOID]
 import { WeaponSystem } from '../systems/WeaponSystem';
 import { WaveManager } from '../managers/WaveManager';
 import { ExtractionManager } from '../managers/ExtractionManager';
 import { CombatManager } from '../managers/CombatManager';
 import { TerrainManager } from '../managers/TerrainManager';
-import { PlayerFactory } from '../factories/PlayerFactory';
 import { InputSystem } from '../systems/InputSystem';
 import { EffectManager } from '../managers/EffectManager';
 import { NetworkSyncSystem } from '../systems/NetworkSyncSystem';
 import { GlitchPipeline } from '../pipelines/GlitchPipeline';
 import { InputRecorder } from '../systems/InputRecorder';
-import { TextureManager } from '../managers/TextureManager';
 import { SoundManager } from '../managers/SoundManager';
 import { World } from '../ecs/ECS';
 import { PhysicsSystem } from '../ecs/systems/PhysicsSystem';
 import { RenderSystem } from '../ecs/systems/RenderSystem';
 import { Position, Velocity, Renderable } from '../ecs/Components';
 
+// [NEW MANAGERS]
+import { CameraDirector } from '../managers/CameraDirector';
+import { PlayerLifecycleManager } from '../managers/PlayerLifecycleManager';
+import { ProgressionManager } from '../managers/ProgressionManager';
+
 type GameMode = 'SINGLE' | 'MULTI';
 
-// [STYLE] Amber-Glitch Visual Constitution (代碼：Neon-Candy Wasteland)
 const AMBER_STYLE = {
-    bg: 0x2D1B2E,          // 深紫色背景
-    ambient: 0x665566,     // 暖灰色環境光
-    playerLight: 0xFFD1A9, // 鎢絲燈暖黃 (3500K)
-    shadow: 0x1B1020,      // 陰影色
-    glitchBase: 0.02,      // VHS 雜訊質感
-    glitchPeak: 0.5        // 撞擊/暴擊強度
+    bg: 0x2D1B2E,
+    ambient: 0x665566,
+    playerLight: 0xFFD1A9,
+    glitchBase: 0.02,
+    glitchPeak: 0.5
 };
 
 export class MainScene extends Phaser.Scene {
-    // ... 宣告區 ...
     declare public cameras: Phaser.Cameras.Scene2D.CameraManager;
     declare public add: Phaser.GameObjects.GameObjectFactory;
     declare public time: Phaser.Time.Clock;
@@ -50,36 +44,27 @@ export class MainScene extends Phaser.Scene {
     declare public physics: Phaser.Physics.Arcade.ArcadePhysics;
     declare public input: Phaser.Input.InputPlugin;
     declare public scale: Phaser.Scale.ScaleManager;
-    declare public renderer: Phaser.Renderer.WebGL.WebGLRenderer; // 明確宣告 renderer
+    declare public renderer: Phaser.Renderer.WebGL.WebGLRenderer;
 
-    private commander: Player | null = null;
-    private drone: Player | null = null;
-    private myUnit: Player | null = null;
-    private otherUnit: Player | null = null;
+    // Managers (Refactored)
+    public cameraDirector!: CameraDirector;
+    public playerManager!: PlayerLifecycleManager;
+    public progression!: ProgressionManager;
+
     private enemyGroup: Phaser.GameObjects.Group | null = null;
     private projectileGroup: Phaser.GameObjects.Group | null = null;
-    private bgGrid: Phaser.GameObjects.Grid | null = null;
 
     // Glitch
     private glitchPipeline: GlitchPipeline | null = null;
-    private glitchIntensity: number = 0.02; // 預設一點點 VHS 雜訊
+    private glitchIntensity: number = 0.02;
     private glitchDuration: number = 0;
     private playerLight: Phaser.GameObjects.Light | null = null;
 
     // State
     private isGameActive: boolean = false;
-    private currentMode: GameMode = 'SINGLE';
     private isPaused: boolean = false;
-    private level: number = 1;
-    private xp: number = 0;
-    private xpToNextLevel: number = 10;
-    private score: number = 0;
     private hp: number = 100;
     private maxHp: number = 100;
-    private survivalTime: number = 0;
-    // private matchTimer: number = 180; // [PURGED]
-    private nextBossTime: number = 300;
-    private pulsePhase: 'SCAVENGE' | 'WARNING' | 'PURGE' = 'SCAVENGE';
 
     // Systems
     public waveManager!: WaveManager;
@@ -87,7 +72,6 @@ export class MainScene extends Phaser.Scene {
     public combatManager!: CombatManager;
     public terrainManager!: TerrainManager;
     public effectManager!: EffectManager;
-    // public powerupService!: PowerupService; // [ZOMBIE PURGE]
     public lootService!: LootService;
     public weaponSystem!: WeaponSystem;
     public inputSystem!: InputSystem;
@@ -96,12 +80,10 @@ export class MainScene extends Phaser.Scene {
     public soundManager!: SoundManager;
     public ecsWorld!: World;
 
-    private myClass: string = 'BLADE';
-    private doubleScoreActive: boolean = false;
+    private myClass: string = 'SCAVENGER';
     private statsModifiers = { tetherLength: 1.0, droneSpeed: 1.0, playerSpeed: 1.0 };
     public worldWidth: number = 4000;
     public worldHeight: number = 4000;
-    private lastStatsTime: number = 0;
     private accumulator: number = 0;
     private readonly fixedTimeStep: number = 1000 / 60;
 
@@ -110,18 +92,22 @@ export class MainScene extends Phaser.Scene {
     }
 
     create() {
-        // ... (truncated) setBackgroundColor, setBounds ...
+        this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
 
-        // 5. Initialize Groups
+        // Groups
         this.enemyGroup = this.add.group();
-        this.projectileGroup = this.add.group(); // 確保這個也被初始化
+        this.projectileGroup = this.add.group();
 
-        // 6. Initialize Systems
-        // this.powerupService = new PowerupService(this); // [ZOMBIE PURGE]
+        // Init Managers
+        this.cameraDirector = new CameraDirector(this, this.worldWidth, this.worldHeight);
+        this.playerManager = new PlayerLifecycleManager(this);
+        this.progression = new ProgressionManager(this);
+
+        // Init Systems
         this.lootService = new LootService(this);
         this.effectManager = new EffectManager(this);
         this.terrainManager = new TerrainManager(this);
-        this.terrainManager.generateWorld(); // [Check] 確保地板有生成
+        this.terrainManager.generateWorld();
 
         this.weaponSystem = new WeaponSystem(this);
         this.inputSystem = new InputSystem(this);
@@ -132,226 +118,150 @@ export class MainScene extends Phaser.Scene {
         this.waveManager = new WaveManager(this, this.enemyGroup);
         this.soundManager = new SoundManager();
 
-        // [PHASE II] ECS Initialization 🧠
+        // ECS
         this.ecsWorld = new World();
         this.ecsWorld.addSystem(new PhysicsSystem(this.ecsWorld));
         this.ecsWorld.addSystem(new RenderSystem(this.ecsWorld));
 
-        // TEST: Create a Ghost Entity (Now Visible!)
+        // Test Entity
         const ghost = this.ecsWorld.createEntity();
-        this.ecsWorld.addComponent(ghost, Position, 2000, 2000); // Start at center
-        this.ecsWorld.addComponent(ghost, Velocity, 100, 100);   // Move diagonally
-
-        // Give it a body! (Simple White Circle)
+        this.ecsWorld.addComponent(ghost, Position, 2000, 2000);
+        this.ecsWorld.addComponent(ghost, Velocity, 100, 100);
         const ghostGfx = this.add.circle(0, 0, 15, 0xFFFFFF);
         this.ecsWorld.addComponent(ghost, Renderable, ghostGfx);
 
-        console.log(`🧠 [ECS] Ghost Entity Created: ID ${ghost}`);
-
-        // 7. [STYLE] Lighting System (Amber-Glitch)
-        // 啟用光照
+        // Lighting
         this.lights.enable();
-        // 設定環境光 (暖灰，確保非發光物體也能被看見)
         this.lights.setAmbientColor(AMBER_STYLE.ambient);
+        this.playerLight = this.lights.addLight(0, 0, 500).setIntensity(1.5).setColor(AMBER_STYLE.playerLight);
 
-        // 創建主角光環 (即使主角還沒生成，燈光先準備好)
-        this.playerLight = this.lights.addLight(0, 0, 500)
-            .setIntensity(1.5)
-            .setColor(AMBER_STYLE.playerLight);
-
-        // 8. [STYLE] Glitch Pipeline
+        // Glitch
         if (this.game.renderer.type === Phaser.WEBGL) {
             try {
                 this.renderer.pipelines.addPostPipeline('GlitchPipeline', GlitchPipeline);
                 this.cameras.main.setPostPipeline(GlitchPipeline);
                 this.glitchPipeline = this.cameras.main.getPostPipeline(GlitchPipeline) as GlitchPipeline;
-                this.glitchPipeline.intensity = this.glitchIntensity; // 預設一點雜訊
-            } catch (e) {
-                console.warn("⚠️ Shader Pipeline failed to load:", e);
-            }
+                this.glitchPipeline.intensity = this.glitchIntensity;
+            } catch (e) { console.warn("Shader Pipeline failed", e); }
         }
 
-        // 9. Input & Events
+        // Events
         EventBus.on('JOYSTICK_MOVE', (vec: { x: number, y: number }) => this.inputSystem.setVirtualAxis(vec.x, vec.y));
         EventBus.on('JOYSTICK_AIM', (data: { x: number, y: number, isFiring: boolean }) => this.inputSystem.setVirtualAim(data.x, data.y, data.isFiring));
         EventBus.on('JOYSTICK_SKILL', (skill: string) => this.inputSystem.triggerSkill(skill));
 
-        // Game Flow Events
         EventBus.on('START_MATCH', this.handleStartMatch, this);
         EventBus.on('ENEMY_KILLED', (enemy: any) => this.handleEnemyKill(enemy));
         EventBus.on('GAME_OVER_SYNC', this.gameOver, this);
+        EventBus.on('RESUME_GAME', () => { this.isPaused = false; this.physics.resume(); });
 
-        // Physics Colliders
         this.physics.add.collider(this.projectileGroup, this.terrainManager.wallGroup, (proj: any) => proj.destroy());
-
-        // Emit Ready
         EventBus.emit('SCENE_READY');
-
-        // [PROTOCOL] React UI Resume Game
-        EventBus.on('RESUME_GAME', () => {
-            console.log("▶️ [MainScene] Game Resumed from UI.");
-            this.isPaused = false;
-            this.physics.resume();
-        });
     }
 
     handleResize(gameSize: Phaser.Structs.Size) {
-        // [FIX] Web 適配核心邏輯
-        this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
-        this.updateCameraZoom();
-
-        if (this.myUnit) {
-            this.cameras.main.startFollow(this.myUnit, true, 0.1, 0.1);
-            this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
-        }
+        this.cameraDirector.handleResize(gameSize);
     }
 
-    updateCameraZoom() {
-        const width = this.scale.width;
-        let zoom = 1.0;
-        if (width < 600) zoom = 0.8; // Mobile
-        else zoom = 1.0; // Desktop
-        this.cameras.main.zoomTo(zoom, 500, 'Power2');
-    }
+    private handleStartMatch() {
+        if (this.isGameActive) return;
 
-    handleStartMatch(data: any) {
-        console.log("🚀 [MainScene] Starting Match... (V0.3.1 Debug)");
+        // [ONBOARDING] Check Tutorial Step
+        const tutorialStep = inventoryService.getTutorialStep();
 
-        // 1. Set State
-        const mode = (typeof data === 'string') ? data : data.mode;
-        if (typeof data === 'object' && data.hero) this.myClass = data.hero;
-        this.currentMode = 'SINGLE';
-        this.isGameActive = true;
-        console.log("✅ [MainScene] isGameActive set to TRUE");
+        if (tutorialStep === 'VOID') {
+            console.log("Entering Void Protocol...");
+            // Pause physics/game loop effectively by not spawning anything yet??
+            // Actually, we are scene 'starting', so we can just pause the scene immediately or enter a 'SELECT' state.
 
-        // 2. Setup Players
-        this.setupPlayers();
+            // Emit UI Event
+            EventBus.emit('SHOW_CLASS_SELECTION');
 
-        // 3. Start Wave
-        this.startNewWave(1);
+            // Wait for selection
+            const onClassSelected = (classId: string) => {
+                console.log(`Class Selected: ${classId}`);
+                // InventoryService already handled setTrialClass
 
-        // 4. [FIX] Camera Lock & Lighting Sync
-        if (this.myUnit) {
-            console.log(`🎥 [MainScene] Camera locking to ${this.myUnit.x}, ${this.myUnit.y}`);
+                // Now start the actual match with this class
+                this.startMatchWithClass(classId);
 
-            // 強制鏡頭跳轉
-            this.cameras.main.centerOn(this.myUnit.x, this.myUnit.y);
-            this.cameras.main.startFollow(this.myUnit, true, 0.1, 0.1);
-
-            // 同步燈光
-            if (this.playerLight) {
-                this.playerLight.setPosition(this.myUnit.x, this.myUnit.y);
-            }
-        } else {
-            console.error("❌ [MainScene] CRITICAL: Player not created!");
-        }
-    }
-
-    setupPlayers() {
-        if (this.commander) this.commander.destroy();
-        if (this.drone) this.drone.destroy();
-
-        const cx = this.worldWidth / 2;
-        const cy = this.worldHeight / 2;
-
-        // [Check] 確保 PlayerFactory 正常運作，且 Texture 已生成
-        this.commander = PlayerFactory.create(this, cx, cy, this.myClass as any, 'COMMANDER', true);
-        // [REMOVED] Legacy Drone (User Request)
-        // this.drone = PlayerFactory.create(this, cx + 50, cy, 'WEAVER', 'DRONE', false);
-
-        this.myUnit = this.commander;
-        this.otherUnit = null; // No drone
-
-        this.commander.setDepth(100);
-
-        // [STYLE] 讓主角受光照影響
-        // this.commander.setPipeline('Light2D'); 
-
-        this.networkSyncSystem.setTargets(this.commander!, null, this.waveManager);
-
-        // [PROTOCOL] Operation Gacha Link: Poverty RNG
-        // this.weaponSystem.ensurePlayerWeapon(this.commander); // [DEPRECATED]
-
-        if (!this.commander.equippedWeapon) {
-            // A. Determine T0 ID based on Class
-            const t0Map: Record<string, string> = {
-                'SCAVENGER': 'weapon_crowbar_t0',
-                'RANGER': 'weapon_pistol_t0',
-                'WEAVER': 'weapon_drone_t0'
+                // Unsubscribe
+                EventBus.off('CLASS_SELECTED', onClassSelected);
             };
-            // Default to crowbar if classId map fails (Safety)
-            const defId = t0Map[this.myClass] || 'weapon_crowbar_t0';
+            EventBus.on('CLASS_SELECTED', onClassSelected);
 
-            // B. Call LootService for RNG stats (The Soul!)
-            const emergencyWeapon = LootService.generateLoot(0, defId);
+            return; // EXIT here, do not proceed to normal start
+        }
 
-            if (emergencyWeapon) {
-                this.commander.equipWeapon(emergencyWeapon);
-                console.log(`🎁 [MainScene] Poverty Gacha Result: ${emergencyWeapon.displayName} (${emergencyWeapon.rarity})`);
-
-                // [PROTOCOL] Operation First Contact: Visual Feedback
-                // 暫停遊戲，等待玩家確認
-                this.isPaused = true;
-                this.physics.pause();
-
-                EventBus.emit('SHOW_ACQUISITION_MODAL', {
-                    title: 'EMERGENCY RATION // 緊急配給',
-                    subtitle: 'NO WEAPON DETECTED',
-                    item: emergencyWeapon,
-                    flavorText: '「在廢土上，有東西拿就不錯了，別挑。」'
-                });
-            } else {
-                console.error("❌ [MainScene] Failed to generate T0 weapon!");
+        if (tutorialStep === 'TRIAL') {
+            console.log("Resuming Trial Protocol...");
+            const trialClass = inventoryService.getTrialClass();
+            if (trialClass) {
+                this.startMatchWithClass(trialClass);
+                return;
             }
         }
+
+        // NORMAL START
+        // Initial cleanups...
+        // Note: metaService and mapManager are not defined in the provided context.
+        // Assuming `this.myClass` is the equivalent of `this.metaService.selectedHeroId` for this context.
+        this.startMatchWithClass(this.myClass);
+    }
+
+    private startMatchWithClass(classId: string) {
+        this.isGameActive = true;
+        this.isPaused = false;
+
+        // ... (Original logic moved here)
+        // 1. Map Setup
+        // Note: mapManager is not defined in the provided context.
+        // Assuming terrainManager.generateWorld() is the equivalent of mapManager.generateMap() for this context.
+        this.terrainManager.generateWorld();
+
+        // 2. Player Spawn
+        // Note: mapManager.getPlayerSpawnPoint() is not defined.
+        // Using existing worldWidth/Height for spawn point.
+        const player = this.playerManager.spawnPlayer(classId, this.worldWidth / 2, this.worldHeight / 2, this.networkSyncSystem, this.waveManager);
+
+        // 3. Camera
+        this.cameraDirector.setupFollow(player);
+
+        // 4. Wave Start
+        this.waveManager.startWave(1);
+
+        // 5. FX
+        // Note: cameraDirector.triggerFlash is not defined.
+        // this.cameraDirector.triggerFlash(1000);
     }
 
     update(time: number, delta: number) {
-        if (!this.myUnit) {
-            if (time % 1000 < 20) console.log("⚠️ [MainScene] Update: No MyUnit");
-            return;
-        }
+        if (!this.playerManager.myUnit) return;
 
-        // [STYLE] Lighting Follow & Flicker (模擬老舊燈泡)
+        // Lighting Follow
+        const myUnit = this.playerManager.myUnit;
         if (this.playerLight) {
-            this.playerLight.setPosition(this.myUnit.x, this.myUnit.y);
+            this.playerLight.setPosition(myUnit.x, myUnit.y);
             this.playerLight.intensity = 1.2 + Math.sin(time / 200) * 0.1;
         }
 
-        // [STYLE] Glitch Decay (VHS Style)
+        // Glitch Decay
         if (this.glitchDuration > 0) {
             this.glitchDuration -= delta;
         } else {
-            if (this.glitchIntensity > AMBER_STYLE.glitchBase) {
-                this.glitchIntensity *= 0.85; // Faster fade to base
-            } else {
-                this.glitchIntensity = AMBER_STYLE.glitchBase;
-            }
+            this.glitchIntensity = Math.max(AMBER_STYLE.glitchBase, this.glitchIntensity * 0.85);
         }
-        if (this.glitchPipeline) {
-            this.glitchPipeline.intensity = this.glitchIntensity;
-        }
+        if (this.glitchPipeline) this.glitchPipeline.intensity = this.glitchIntensity;
 
-        // [JUICE] Low HP Vignette Pulse
+        // Low HP Effect
         if (this.hp < this.maxHp * 0.3) {
-            const alpha = 0.3 + Math.sin(time / 200) * 0.2;
-            this.cameras.main.flash(50, 255, 0, 0, false, undefined); // Too aggressive?
-            // Better: Draw a red rectangle overlay via UI or just tint camera?
-            // Camera tint affects everything.
-            // Let's rely on GameOverlay React UI for red borders, or send event.
-            // Actually MainScene can't easily draw "Screen Space" overlay without scrollfactor 0.
-            // Let's emit stats and let React handle the "Red Border".
-            // React already handles HP bar.
-
-            // Just shake more often?
-            if (Math.random() < 0.05) this.cameras.main.shake(100, 0.005);
+            if (Math.random() < 0.05) this.cameraDirector.shake(0.005, 100);
         }
 
-        // Standard Updates
-        this.commander?.update();
-        this.drone?.update();
+        // Managers Update
+        this.playerManager.update();
 
-        // Fixed Step Logic
+        // Fixed Step
         this.accumulator += delta;
         while (this.accumulator >= this.fixedTimeStep) {
             this.fixedUpdate(time, this.fixedTimeStep);
@@ -362,105 +272,43 @@ export class MainScene extends Phaser.Scene {
     fixedUpdate(time: number, delta: number) {
         if (!this.isGameActive || this.isPaused) return;
 
-        if (this.isGameActive && !this.isPaused) {
-            this.survivalTime += delta / 1000;
+        this.progression.update(delta);
+        const myUnit = this.playerManager.myUnit;
+
+        // Input
+        if (myUnit) {
+            this.inputSystem.processInput(this.input, this.cameras, myUnit, this.statsModifiers); // Compat: Camera still passed for ScreenToWorld, keep?
+            // Input System uses camera for mouse conversion.
+            this.cameraDirector.updateLookahead(this.inputSystem.getVirtualAxis().x, this.inputSystem.getVirtualAxis().y);
+            if (this.enemyGroup) myUnit.autoFire(time, this.enemyGroup);
         }
 
-        // [OPERATION DUAL-TRACK]
-        // Timer Logic Purged.
-        // Game now runs indefinitely until Extraction or Death.
-
-        this.processLocalInput(time);
-
-        // AI & Logic
-        // this.updateDroneAI(); // REMOVED Legacy
         this.waveManager.update(time, delta);
-
-        // [PHASE II] ECS Logic 🧠
         this.ecsWorld.update(delta);
-        // Debug: Log Ghost Position occasionally
-        if (time % 2000 < 20) {
-            // Query Test
-            const ghosts = this.ecsWorld.query([Position, Velocity]);
-            if (ghosts.length > 0) {
-                const pos = this.ecsWorld.getComponent<Position>(ghosts[0], Position);
-                console.log(`👻 [ECS] Ghost Pos: ${Math.round(pos?.x || 0)}, ${Math.round(pos?.y || 0)}`);
-            }
-        }
 
         this.enemyGroup?.getChildren().forEach((child) => {
-            if (child.active) (child as Enemy).update(time, delta, this.commander!);
+            if (child.active) (child as Enemy).update(time, delta, myUnit!);
         });
 
         this.runCombatLogic();
         this.extractionManager.update(time, delta);
         this.handleExtraction();
 
-        // V0.3.1 Debug: Force UI Update every 10 frames (approx 160ms) to ensure timer moves
-        if (time % 10 < 1) {
-            this.emitStatsUpdate();
-        }
-    }
-
-    processLocalInput(time: number) {
-        if (this.commander) {
-            this.inputSystem.processInput(this.input, this.cameras, this.commander, this.statsModifiers);
-
-            // [JUICE] Camera Lookahead (Input-driven)
-            const pad = this.inputSystem.getVirtualAxis();
-            // If dragging joystick, peak ahead
-            if (Math.abs(pad.x) > 0.1 || Math.abs(pad.y) > 0.1) {
-                const lookX = this.commander.x + pad.x * 200; // Look 200px ahead
-                const lookY = this.commander.y + pad.y * 200;
-
-                // Soft lerp camera follow offset? 
-                // Phaser's startFollow doesn't easily support offset lerp without manual update.
-                // Let's manually lerp scroll logic or use setLerp.
-
-                // HACK: Tweaking follow offset is tricky. 
-                // Simpler: Just rely on mouse pointer logic for PC, but this is joystick.
-                // Let's use camera.followOffset
-
-                this.cameras.main.followOffset.x = Phaser.Math.Linear(this.cameras.main.followOffset.x, -pad.x * 100, 0.05);
-                this.cameras.main.followOffset.y = Phaser.Math.Linear(this.cameras.main.followOffset.y, -pad.y * 100, 0.05); // Negative to look ahead
-            } else {
-                // Return to center
-                this.cameras.main.followOffset.x = Phaser.Math.Linear(this.cameras.main.followOffset.x, 0, 0.05);
-                this.cameras.main.followOffset.y = Phaser.Math.Linear(this.cameras.main.followOffset.y, 0, 0.05);
-            }
-
-            if (this.enemyGroup) this.commander.autoFire(time, this.enemyGroup);
-        }
-    }
-
-    updateDroneAI() {
-        if (!this.drone || !this.commander) return;
-        const orbitSpeed = 0.02;
-        const desiredDist = 180;
-        const angle = Phaser.Math.Angle.Between(this.commander.x, this.commander.y, this.drone.x, this.drone.y);
-        const targetAngle = angle + orbitSpeed;
-        const targetX = this.commander.x + Math.cos(targetAngle) * desiredDist;
-        const targetY = this.commander.y + Math.sin(targetAngle) * desiredDist;
-        const dx = targetX - this.drone.x;
-        const dy = targetY - this.drone.y;
-        const body = this.drone.body as Phaser.Physics.Arcade.Body;
-        body.setVelocity(dx * 4, dy * 4);
-        this.drone.rotation += 0.05;
+        if (time % 10 < 1) this.emitStatsUpdate();
     }
 
     runCombatLogic() {
-        // Only verify commander collision (Drone removed)
-        const players = [this.commander!].filter(p => !!p);
+        const players = [this.playerManager.commander!].filter(p => !!p);
         this.combatManager.checkCollisions(
             this.enemyGroup!,
             players,
             (amt) => this.takeDamage(amt),
-            this.weaponSystem.projectiles // [FIX] External Projectiles
+            this.weaponSystem.projectiles
         );
     }
 
     takeDamage(amt: number) {
-        this.cameras.main.shake(200, 0.01);
+        this.cameraDirector.shake(0.01, 200);
         this.triggerGlitch(AMBER_STYLE.glitchPeak, 150);
         EventBus.emit('PLAY_SFX', 'HIT');
         this.hp -= amt;
@@ -471,23 +319,13 @@ export class MainScene extends Phaser.Scene {
         this.emitStatsUpdate();
     }
 
-    startNewWave(wave: number) {
-        if (!this.commander) return;
-        this.waveManager.startWave(wave);
-    }
-
     handleEnemyKill(enemy: any) {
-        const score = enemy.value || 10;
-        this.awardScore(score);
+        this.progression.handleEnemyKill(enemy);
         this.lootService.trySpawnLoot(enemy.x, enemy.y);
     }
 
-    awardScore(base: number) {
-        this.score += this.doubleScoreActive ? base * 2 : base;
-    }
-
     gameOver() {
-        EventBus.emit('GAME_OVER', { score: this.score, wave: this.waveManager.wave, level: this.level });
+        EventBus.emit('GAME_OVER', { score: this.progression.score, wave: this.waveManager.wave, level: this.progression.level });
         this.isPaused = true;
         this.isGameActive = false;
         this.physics.pause();
@@ -499,93 +337,28 @@ export class MainScene extends Phaser.Scene {
     }
 
     emitStatsUpdate() {
-        EventBus.emit('STATS_UPDATE', {
-            hp: this.hp,
-            maxHp: this.maxHp,
-            level: this.level,
-            xp: this.xp,
-            xpToNextLevel: this.xpToNextLevel,
-            score: this.score,
-            wave: this.waveManager ? this.waveManager.wave : 1,
-            enemiesAlive: this.enemyGroup ? this.enemyGroup.getLength() : 0,
-            survivalTime: this.survivalTime,
-            matchTimer: 0, // [COMPAT] UI expects this, send 0 to indicate valid empty state
-            cooldowns: this.myUnit ? this.myUnit.cooldowns : {},
-            maxCooldowns: this.myUnit ? this.myUnit.maxCooldowns : {},
-        });
-    }
-
-    handleExtraction() {
-        if (!this.myUnit) return;
-        if (this.extractionManager.checkExtraction(this.myUnit)) {
-            // Extraction Success Logic
-            this.physics.pause();
-            this.isGameActive = false;
-            EventBus.emit('EXTRACTION_SUCCESS', this.myUnit.lootBag);
-            inventoryService.processLootBag(this.myUnit.lootBag.map(i => i.uid));
+        if (this.playerManager.myUnit) {
+            this.progression.emitStats(this.hp, this.maxHp, this.waveManager.wave, this.enemyGroup ? this.enemyGroup.getLength() : 0, this.playerManager.myUnit);
         }
     }
 
-    public hitStop(duration: number = 50) {
-        this.physics.pause();
-        this.isPaused = true;
-        this.time.delayedCall(duration, () => {
-            this.physics.resume();
-            this.isPaused = false;
-        });
+    handleExtraction() {
+        const myUnit = this.playerManager.myUnit;
+        if (!myUnit) return;
+        if (this.extractionManager.checkExtraction(myUnit)) {
+            this.physics.pause();
+            this.isGameActive = false;
+            EventBus.emit('EXTRACTION_SUCCESS', myUnit.lootBag);
+            inventoryService.processLootBag(myUnit.lootBag.map(i => i.uid));
+        }
     }
 
-    // [JUICE] Wave 10: Level Up Shockwave
     levelUp() {
-        this.level++;
-        this.xp = 0;
-        this.xpToNextLevel = Math.floor(this.xpToNextLevel * 1.5);
-
-        EventBus.emit('PLAY_SFX', 'LEVEL_UP');
-        // Wait, SFX not bounded yet? Add to sound manager locally later. Using COLLECT for now.
-
-        // Visual: Shockwave Ring
-        const ring = this.add.circle(this.myUnit!.x, this.myUnit!.y, 10, 0x00FFFF);
-        ring.setStrokeStyle(4, 0x00FFFF);
-        ring.setBlendMode(Phaser.BlendModes.ADD);
-        this.tweens.add({
-            targets: ring,
-            radius: 500,
-            alpha: 0,
-            duration: 800,
-            onComplete: () => ring.destroy()
-        });
-
-        // Logic: Knockback Enemies
-        const range = 500;
-        this.enemyGroup?.getChildren().forEach((child) => {
-            const e = child as Enemy;
-            const dist = Phaser.Math.Distance.Between(this.myUnit!.x, this.myUnit!.y, e.x, e.y);
-            if (dist < range && e.body) {
-                const angle = Phaser.Math.Angle.Between(this.myUnit!.x, this.myUnit!.y, e.x, e.y);
-                const force = 400; // Strong Push
-                e.body.velocity.x += Math.cos(angle) * force;
-                e.body.velocity.y += Math.sin(angle) * force;
-                // Stun?
-                e.takeDamage(5); // Minor damage
-            }
-        });
-
-        // [VOID PROTOCOL] Upgrade System Purged. No pausing.
-        EventBus.emit('SHOW_FLOATING_TEXT', {
-            x: this.myUnit!.x,
-            y: this.myUnit!.y - 50,
-            text: "LEVEL UP!",
-            color: '#FFFF00'
-        });
-
-        // Future: Evolution Check
+        this.progression.levelUp(this.playerManager.myUnit!, this.enemyGroup!);
     }
-    onResume() { this.isPaused = false; this.physics.resume(); }
+
     cleanup() {
         this.scale.off('resize', this.handleResize, this);
         EventBus.off('START_MATCH', this.handleStartMatch, this);
     }
-    updateBackground(time: number) { }
-    updateLighting() { } // 已由 Light System 接管
 }

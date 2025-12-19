@@ -3,6 +3,7 @@ import { TacticalLayout } from '../layout/TacticalLayout';
 import { inventoryService } from '../../services/InventoryService';
 import { ItemInstance, ItemRarity } from '../../types';
 import { metaGame } from '../../services/MetaGameService';
+import { languageService } from '../../services/LanguageService';
 
 // [COLOR UTILS]
 const getRarityColor = (rarity: ItemRarity) => {
@@ -64,11 +65,19 @@ const StatRow = ({ label, value, current, inverse = false }: { label: string, va
 export const ArsenalScreen: React.FC = () => {
     const [profile, setProfile] = useState(inventoryService.getState());
     const [selectedItem, setSelectedItem] = useState<ItemInstance | null>(null);
+    const [lang, setLang] = useState(languageService.current);
 
     // Sync Profile
     useEffect(() => {
-        return inventoryService.subscribe(setProfile);
+        const unsubInv = inventoryService.subscribe(setProfile);
+        const unsubLang = languageService.subscribe(setLang);
+        return () => {
+            unsubInv();
+            unsubLang(); // Unsubscribe language
+        };
     }, []);
+
+    const t = (key: any) => languageService.t(key);
 
     const handleEquip = (item: ItemInstance) => {
         // Simple swap logic for MVP
@@ -86,14 +95,14 @@ export const ArsenalScreen: React.FC = () => {
                 {/* 1. STASH (Left - 3 Cols) */}
                 <div className="col-span-3 flex flex-col gap-4 border-r border-amber-dim/30 pr-4">
                     <div className="text-xl font-bold tracking-widest text-amber-neon mb-2">
-                        STASH // {profile.stash.length}
+                        {t('STASH_HEADER')} // {profile.stash.length}
                     </div>
                     <div className="flex-1 overflow-y-auto flex flex-col gap-2 custom-scrollbar">
                         {profile.stash.map(item => (
                             <ItemCard key={item.uid} item={item} onClick={() => setSelectedItem(item)} />
                         ))}
                         {profile.stash.length === 0 && (
-                            <div className="text-amber-dim text-center py-10 italic">NO ITEMS IN STASH</div>
+                            <div className="text-amber-dim text-center py-10 italic">{t('NO_ITEMS')}</div>
                         )}
                     </div>
                 </div>
@@ -102,7 +111,7 @@ export const ArsenalScreen: React.FC = () => {
                 <div className="col-span-5 flex flex-col items-center justify-center relative">
                     {/* Header */}
                     <div className="absolute top-0 w-full text-center border-b border-amber-dim/20 pb-2">
-                        <span className="text-2xl font-black tracking-[0.5em] text-white/20">AGENT LOADOUT</span>
+                        <span className="text-2xl font-black tracking-[0.5em] text-white/20">{t('LOADOUT_HEADER')}</span>
                     </div>
 
                     {/* Main Weapon Slot */}
@@ -118,20 +127,20 @@ export const ArsenalScreen: React.FC = () => {
                                         onClick={handleUnequip}
                                         className="absolute bottom-4 text-xs px-2 py-1 bg-red-900/50 hover:bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
                                     >
-                                        [ UNEQUIP ]
+                                        {t('UNEQUIP')}
                                     </button>
                                 </>
                             ) : (
                                 <div className="text-amber-dim text-center animate-pulse">
                                     <div className="text-4xl mb-2">⚠️</div>
-                                    <div>NO WEAPON</div>
-                                    <div className="text-xs mt-1">EMERGENCY PROTOCOL ACTIVE</div>
+                                    <div>{t('NO_WEAPON')}</div>
+                                    <div className="text-xs mt-1">{t('EMERGENCY_PROTOCOL')}</div>
                                 </div>
                             )}
                         </div>
                         {/* Label */}
                         <div className="absolute -left-8 top-1/2 -rotate-90 text-xs tracking-widest text-amber-dim">
-                            MAIN_WEAPON
+                            {t('SLOT_MAIN_WEAPON')}
                         </div>
                     </div>
                 </div>
@@ -139,7 +148,7 @@ export const ArsenalScreen: React.FC = () => {
                 {/* 3. INSPECTOR (Right - 4 Cols) */}
                 <div className="col-span-4 bg-amber-dark/50 border border-amber-dim/20 p-6 flex flex-col gap-6">
                     <div className="text-xl font-bold tracking-widest text-amber-neon border-b border-amber-dim/30 pb-2">
-                        INSPECTOR
+                        {t('INSPECTOR_HEADER')}
                     </div>
 
                     {selectedItem ? (
@@ -153,21 +162,18 @@ export const ArsenalScreen: React.FC = () => {
 
                             <div className="flex flex-col gap-2 mt-4 text-amber-dim">
                                 <StatRow
-                                    label="DAMAGE"
+                                    label={t('STAT_DAMAGE')}
                                     value={selectedItem.computedStats.damage}
                                     current={profile.loadout.mainWeapon?.computedStats.damage}
                                 />
                                 <StatRow
-                                    label="FIRE RATE"
+                                    label={t('STAT_FIRE_RATE')}
                                     value={selectedItem.computedStats.fireRate}
                                     current={profile.loadout.mainWeapon?.computedStats.fireRate}
-                                    inverse={true} // Lower is better for delay, but stats usually meant "Speed"? 
-                                // Wait, data says "fireRate" is likely delay in ms? Or shots per sec?
-                                // T0 backup has fireRate: 1000 (ms). T3 tactical has fireRate: 100.
-                                // So LOWER is BETTER.
+                                    inverse={true}
                                 />
                                 <StatRow
-                                    label="RANGE"
+                                    label={t('STAT_RANGE')}
                                     value={selectedItem.computedStats.range}
                                     current={profile.loadout.mainWeapon?.computedStats.range}
                                 />
@@ -179,16 +185,16 @@ export const ArsenalScreen: React.FC = () => {
                                     onClick={() => handleEquip(selectedItem)}
                                     className="flex-1 py-3 bg-glitch-cyan/20 border border-glitch-cyan hover:bg-glitch-cyan hover:text-black font-bold tracking-widest transition-all"
                                 >
-                                    EQUIP
+                                    {t('BTN_EQUIP')}
                                 </button>
                                 <button className="flex-1 py-3 border border-red-500/50 text-red-400 hover:bg-red-500 hover:text-black font-bold tracking-widest transition-all">
-                                    SELL
+                                    {t('BTN_SELL')}
                                 </button>
                             </div>
                         </>
                     ) : (
                         <div className="text-amber-dim italic h-full flex items-center justify-center">
-                            SELECT ITEM TO INSPECT
+                            {t('SELECT_ITEM')}
                         </div>
                     )}
                 </div>
@@ -198,7 +204,7 @@ export const ArsenalScreen: React.FC = () => {
                     onClick={() => metaGame.navigateTo('HIDEOUT')}
                     className="absolute top-4 right-6 px-4 py-2 border border-amber-dim hover:border-amber-neon text-amber-dim hover:text-amber-neon transition-all"
                 >
-                    [ ESC ] BACK
+                    {t('BTN_BACK')}
                 </button>
             </div>
         </TacticalLayout>

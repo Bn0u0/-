@@ -1,122 +1,156 @@
-import React, { useState } from 'react';
-import { TacticalLayout } from '../layout/TacticalLayout';
+import React, { useState, useEffect } from 'react';
 import { metaGame } from '../../services/MetaGameService';
-import { GameScreen } from '../../services/MetaGameService';
-
-// [PLACEHOLDER] Commander Avatar
-const AvatarPlaceholder = () => (
-    <div className="w-64 h-96 border-2 border-amber-dim bg-black/50 relative overflow-hidden group">
-        <div className="absolute inset-0 flex items-center justify-center text-amber-dim/20 text-6xl font-black rotate-90">
-            COMMANDER
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-amber-bg to-transparent opacity-50"></div>
-        {/* Scanning Effect */}
-        <div className="absolute top-0 left-0 w-full h-2 bg-glitch-cyan/50 shadow-[0_0_10px_#00FFFF] animate-scanline opacity-0 group-hover:opacity-100 transition-opacity"></div>
-    </div>
-);
+import { inventoryService } from '../../services/InventoryService';
+import { languageService } from '../../services/LanguageService';
+import { CLASSES, PlayerFactory } from '../../game/factories/PlayerFactory';
+import { PlayerClassID, TutorialStep } from '../../types';
 
 export const HideoutScreen: React.FC = () => {
-    const [deployConfirm, setDeployConfirm] = useState(false);
-    const [insurance, setInsurance] = useState(false);
+    // 1. Character Selection State
+    const classKeys = Object.keys(CLASSES) as PlayerClassID[];
+    const [selectedClass, setSelectedClass] = useState<PlayerClassID>('SCAVENGER');
+
+    // 2. State Headers
+    const [hasWeapon, setHasWeapon] = useState(true);
+    const [isArsenalUnlocked, setIsArsenalUnlocked] = useState(false);
+    // tutorialStep is used implicitly for logic, but we track it
+    const [tutorialStep, setTutorialStep] = useState<TutorialStep>('VOID');
+
+    useEffect(() => {
+        const checkState = () => {
+            const profile = inventoryService.getState();
+            setHasWeapon(!!profile.loadout.mainWeapon);
+            setIsArsenalUnlocked(profile.tutorialStep === 'COMPLETE');
+            setTutorialStep(profile.tutorialStep);
+        };
+        // Initial check
+        if (inventoryService.getState()) {
+            checkState();
+        }
+
+        const unsub = inventoryService.subscribe(checkState);
+        metaGame.selectHero(selectedClass as any);
+        return unsub;
+    }, [selectedClass]);
+
+    // Handlers
+    const rotateClass = (direction: 1 | -1) => {
+        const currentIndex = classKeys.indexOf(selectedClass);
+        let newIndex = (currentIndex + direction + classKeys.length) % classKeys.length;
+        const newClass = classKeys[newIndex];
+        setSelectedClass(newClass);
+        metaGame.selectHero(newClass);
+    };
 
     const handleDeploy = () => {
-        if (!deployConfirm) {
-            setDeployConfirm(true);
-            return;
-        }
-        // Proceed
+        // Always start match. MainScene manages the tutorial flow (Void -> Select -> Trial).
         metaGame.startMatch();
     };
 
-    const handleNav = (screen: GameScreen) => {
-        // TODO: Handle 'ARSENAL' routing in MetaGameService if added
-        console.log(`Navigating to ${screen}`);
-        // For now, Arsenal might just be a simulated screen or a real one.
-        // Let's assume we will add ARSENAL to GameScreen type soon.
-    };
-
     return (
-        <TacticalLayout>
-            <div className="w-full h-full flex items-center justify-center gap-20">
+        <div className="absolute inset-0 bg-black text-amber-500 font-mono flex flex-col items-center justify-center pointer-events-auto">
 
-                {/* 1. Visual Center: Commander */}
-                <div className="flex flex-col items-center gap-4 animate-up">
-                    <div className="text-amber-dim tracking-widest text-xs">NEURO-LINK STATUS: STABLE</div>
-                    <AvatarPlaceholder />
-                    <div className="text-glitch-cyan font-bold tracking-widest text-xl animate-pulse">
-                        ONLINE
+            {/* --- TOP BAR (Only visible if unlocked?) --- */}
+            {isArsenalUnlocked && (
+                <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-start z-10">
+                    <div className="flex flex-col">
+                        <h1 className="text-4xl font-bold tracking-widest animate-pulse">
+                            {languageService.t('HIDEOUT_HEADER')}
+                        </h1>
+                        <span className="text-xs opacity-50">UNIT_ID: 8842-ALPHA</span>
                     </div>
                 </div>
+            )}
 
-                {/* 2. Command Menu */}
-                <div className="flex flex-col gap-6 w-96">
-                    <div className="text-amber-dim text-sm tracking-widest mb-4 border-b border-amber-dim/30 pb-2">
-                        // ROOT_ACCESS
-                    </div>
+            {/* --- MAIN CONTENT AREA --- */}
+            <div className="relative w-full max-w-6xl h-full flex flex-col items-center justify-center">
 
-                    {/* Deploy Button / Logic */}
-                    {!deployConfirm ? (
-                        <button
-                            onClick={handleDeploy}
-                            className="group relative px-8 py-4 bg-amber-dark/80 border border-amber-neon text-left hover:bg-amber-neon/10 transition-all overflow-hidden"
-                        >
-                            <div className="absolute inset-0 bg-amber-neon/20 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-300"></div>
-                            <div className="relative text-2xl font-bold tracking-widest group-hover:text-glitch-cyan transition-colors">
-                                {'>'} INITIALIZE_DEPLOY
-                            </div>
-                            <div className="relative text-xs text-amber-dim mt-1 group-hover:text-amber-neon">
-                                START NEW OPERATION
-                            </div>
-                        </button>
-                    ) : (
-                        <div className="flex flex-col gap-4 border border-glitch-pink/50 p-4 bg-black/40 animate-flicker">
-                            <div className="text-glitch-pink font-bold tracking-widest text-lg">
-                                CONFIRM NEURO-LINK?
-                            </div>
-                            <label className="flex items-center gap-3 cursor-pointer group">
-                                <input
-                                    type="checkbox"
-                                    checked={insurance}
-                                    onChange={(e) => setInsurance(e.target.checked)}
-                                    className="accent-glitch-cyan w-5 h-5 bg-transparent border border-amber-dim"
-                                />
-                                <span className={`text-sm tracking-wider ${insurance ? 'text-glitch-cyan' : 'text-amber-dim'} group-hover:text-white transition-colors`}>
-                                    BUY INSURANCE (-500C)
-                                </span>
-                            </label>
+                {/* --- CENTER: CHARACTER DISPLAY (Only if Unlocked) --- */}
+                {isArsenalUnlocked ? (
+                    <div className="flex flex-col items-center z-10 mb-8">
+                        {/* CAROUSEL */}
+                        <div className="flex items-center gap-8 mb-6">
                             <button
-                                onClick={handleDeploy}
-                                className="w-full py-3 bg-glitch-pink/20 border border-glitch-pink hover:bg-glitch-pink hover:text-black font-bold tracking-widest transition-all"
+                                onClick={() => rotateClass(-1)}
+                                className="text-4xl opacity-50 hover:opacity-100 hover:scale-125 transition-all"
                             >
-                                EXECUTE
+                                &lt;
                             </button>
+
+                            <div className="relative group w-64 h-96 border-2 border-amber-900 bg-amber-950/20 p-2 flex flex-col items-center justify-between hover:border-amber-400 transition-colors cursor-pointer">
+                                {/* ASCII ART / PORTRAIT */}
+                                <div className="flex-1 w-full flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity whitespace-pre font-mono text-xs leading-[10px] overflow-hidden">
+                                    {/* Placeholder for Character ASCII */}
+                                    {CLASSES[selectedClass as PlayerClassID].role === 'MELEE' &&
+                                        `  O  
+ /|\\ 
+ / \ `}
+                                    {CLASSES[selectedClass as PlayerClassID].role === 'RANGED' &&
+                                        `  O_ 
+ /| 
+ / \\ `}
+                                    {CLASSES[selectedClass as PlayerClassID].role === 'SUMMONER' &&
+                                        `  O  
+ /M\\ 
+ / \\ `}
+                                </div>
+
+                                <div className="w-full border-t border-amber-900/50 pt-2 text-center">
+                                    <h2 className="text-2xl font-bold text-amber-400">{selectedClass}</h2>
+                                    <p className="text-xs text-amber-600">{CLASSES[selectedClass as PlayerClassID].role}</p>
+                                </div>
+                            </div>
+
                             <button
-                                onClick={() => setDeployConfirm(false)}
-                                className="text-xs text-amber-dim hover:text-white text-center mt-1"
+                                onClick={() => rotateClass(1)}
+                                className="text-4xl opacity-50 hover:opacity-100 hover:scale-125 transition-all"
                             >
-                                [ CANCEL ]
+                                &gt;
                             </button>
                         </div>
-                    )}
+                    </div>
+                ) : (
+                    /* --- ROOKIE MODE: THE VOID UI --- */
+                    <div className="flex flex-col items-center justify-center z-10 mb-16 animate-pulse">
+                        <div className="text-6xl font-black text-amber-500 tracking-[0.5em] mb-4 blur-[1px]">
+                            SYNAPSE
+                        </div>
+                        <div className="text-sm text-amber-700 tracking-widest">
+                            SYSTEM ONLINE // CONNECTING...
+                        </div>
+                    </div>
+                )}
 
-                    {/* Arsenal */}
-                    <button
-                        onClick={() => metaGame.navigateTo('ARSENAL')}
-                        className="px-8 py-3 border border-amber-dim/50 text-left hover:border-amber-neon hover:text-amber-neon text-amber-dim transition-all"
-                    >
-                        {'>'} ACCESS_ARSENAL
-                    </button>
+                {/* --- BOTTOM: DEPLOY BUTTON --- */}
+                <button
+                    onClick={handleDeploy}
+                    className="group relative px-12 py-6 bg-amber-900/10 border-2 border-amber-500 hover:bg-amber-500 hover:text-black transition-all duration-100 overflow-hidden"
+                >
+                    <div className="absolute inset-0 bg-amber-500/0 group-hover:bg-amber-500/10 animate-scanline pointer-events-none" />
+                    <span className="relative text-4xl font-black tracking-widest z-10">
+                        {isArsenalUnlocked ? languageService.t('DEPLOY_BUTTON') : "INITIATE LINK"}
+                    </span>
+                    {/* DECO LINES */}
+                    <div className="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-amber-500" />
+                    <div className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-amber-500" />
+                </button>
 
-                    {/* Black Market */}
-                    <button
-                        disabled
-                        className="px-8 py-3 border border-amber-dim/20 text-left text-amber-dim/30 cursor-not-allowed flex justify-between"
-                    >
-                        <span>{'>'} BLACK_MARKET</span>
-                        <span className="text-[10px] mt-1">[LOCKED]</span>
-                    </button>
-                </div>
+                {/* --- BOTTOM RIGHT: ARSENAL (Locked for Rookies) --- */}
+                {isArsenalUnlocked && (
+                    <div className="absolute bottom-8 right-8">
+                        <button
+                            onClick={() => metaGame.navigateTo('ARSENAL')}
+                            className="bg-black border border-amber-800 px-4 py-2 text-sm text-amber-700 hover:text-amber-400 hover:border-amber-400 transition-colors flex items-center gap-2"
+                        >
+                            <span>[ {languageService.t('HOME_BTN_ARSENAL')} ]</span>
+                        </button>
+                    </div>
+                )}
+
             </div>
-        </TacticalLayout>
+
+            {/* Background Grid */}
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(180,83,9,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(180,83,9,0.1)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none opacity-20" />
+        </div>
     );
 };

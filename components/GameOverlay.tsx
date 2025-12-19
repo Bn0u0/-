@@ -1,27 +1,20 @@
 import React, { useEffect, useState } from 'react';
+import { Utils } from 'phaser';
+import { metaGame } from '../services/MetaGameService';
 import { EventBus } from '../services/EventBus';
+import { inventoryService } from '../services/InventoryService';
+import { languageService } from '../services/LanguageService';
+import { PlayerClassID, ItemInstance } from '../types';
 import { AcquisitionModal } from './AcquisitionModal';
-import { ItemInstance } from '../types';
 
-/**
- * GameOverlay: The main HUD during combat.
- * Displays HP, XP, Timer, Score, and active cooldowns.
- */
 export const GameOverlay: React.FC = () => {
-    const [stats, setStats] = useState({
-        hp: 100,
-        maxHp: 100,
-        xp: 0,
-        xpToNextLevel: 10,
-        level: 1,
-        score: 0,
-        survivalTime: 0,
-        matchTimer: 180,
-        enemiesAlive: 0,
-        wave: 1
-    });
+    // --- STATE ---
+    const [stats, setStats] = useState({ hp: 100, maxHp: 100, level: 1, xp: 0, xpToNextLevel: 100, score: 0, survivalTime: 0, enemiesAlive: 0 });
 
-    // [NEW] Acquisition Modal State
+    // Modals
+    const [showClassSelection, setShowClassSelection] = useState(false);
+    const [showTrialEnd, setShowTrialEnd] = useState(false);
+
     const [acquisitionData, setAcquisitionData] = useState<{
         item: ItemInstance;
         title?: string;
@@ -29,44 +22,101 @@ export const GameOverlay: React.FC = () => {
         flavorText?: string;
     } | null>(null);
 
+    // --- EFFECTS ---
     useEffect(() => {
-        const handleUpdate = (data: any) => {
-            setStats(data);
-        };
+        // Stats
+        const handleStats = (newStats: any) => setStats(newStats);
 
-        const handleAcquisition = (data: any) => {
-            setAcquisitionData(data);
-            // Phaser is paused by MainScene logic already
-        };
+        // Modals
+        const handleShowClassSelection = () => setShowClassSelection(true);
+        const handleShowTrialEnd = () => setShowTrialEnd(true);
+        const handleAcquisition = (data: any) => setAcquisitionData(data);
 
-        EventBus.on('STATS_UPDATE', handleUpdate);
+        EventBus.on('STATS_UPDATE', handleStats);
+        EventBus.on('SHOW_CLASS_SELECTION', handleShowClassSelection);
+        EventBus.on('SHOW_TRIAL_END', handleShowTrialEnd);
         EventBus.on('SHOW_ACQUISITION_MODAL', handleAcquisition);
 
         return () => {
-            EventBus.off('STATS_UPDATE', handleUpdate);
+            EventBus.off('STATS_UPDATE', handleStats);
+            EventBus.off('SHOW_CLASS_SELECTION', handleShowClassSelection);
+            EventBus.off('SHOW_TRIAL_END', handleShowTrialEnd);
             EventBus.off('SHOW_ACQUISITION_MODAL', handleAcquisition);
         };
     }, []);
+
+    // --- HANDLERS ---
+    const handleSelectClass = (classId: PlayerClassID) => {
+        setShowClassSelection(false);
+        inventoryService.setTrialClass(classId);
+        EventBus.emit('CLASS_SELECTED', classId);
+    };
+
+    const handleConfirmTrial = () => {
+        setShowTrialEnd(false);
+        inventoryService.confirmTrial();
+        metaGame.navigateTo('HIDEOUT');
+    };
+
+    const handleRejectTrial = () => {
+        setShowTrialEnd(false);
+        inventoryService.rejectTrial();
+        metaGame.navigateTo('HIDEOUT');
+    };
 
     const handleAcceptLoot = () => {
         setAcquisitionData(null);
         EventBus.emit('RESUME_GAME');
     };
 
-    // Format Time: MM:SS
+    // Format Time for HUD
     const minutes = Math.floor(stats.survivalTime / 60);
     const seconds = Math.floor(stats.survivalTime % 60);
     const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-    // Bar Widths
-    const hpPercent = Math.max(0, Math.min(100, (stats.hp / stats.maxHp) * 100));
-    const xpPercent = Math.max(0, Math.min(100, (stats.xp / stats.xpToNextLevel) * 100));
-
     return (
-        <div className="absolute inset-0 pointer-events-none z-[100] select-none font-mono">
-            {/* [NEW] Modal Layer (Pointer events enabled for this overlay if active) */}
+        <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between overflow-hidden font-mono select-none">
+
+            {/* --- HUD: TOP BAR --- */}
+            <div className="flex justify-between items-start z-10">
+                {/* HP BAR */}
+                <div className="flex flex-col gap-1">
+                    <div className="w-64 bg-black/50 border border-amber-900 h-8 relative skew-x-[-15deg]">
+                        <div
+                            className="absolute top-0 left-0 h-full bg-amber-600 transition-all duration-200"
+                            style={{ width: `${(stats.hp / stats.maxHp) * 100}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-mono text-white skew-x-[15deg]">
+                            HP: {Math.floor(stats.hp)} / {stats.maxHp}
+                        </div>
+                    </div>
+                </div>
+
+                {/* TIMER & SCORE */}
+                <div className="flex flex-col items-center">
+                    <div className="bg-black/50 border border-white/20 px-4 py-1 backdrop-blur-sm rounded mb-1">
+                        <span className="text-2xl font-bold text-amber-400 tracking-widest">{timeString}</span>
+                    </div>
+                    <span className="text-[10px] text-gray-500">SURVIVED</span>
+                </div>
+
+                {/* LEVEL Info */}
+                <div className="text-right">
+                    <div className="text-2xl font-black text-amber-500 italic">LV. {stats.level}</div>
+                    <div className="w-32 h-1 bg-gray-800 mt-1 ml-auto">
+                        <div
+                            className="h-full bg-amber-400"
+                            style={{ width: `${(stats.xp / stats.xpToNextLevel) * 100}%` }}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* --- MODALS (Pointer Events Auto) --- */}
+
+            {/* 1. ACQUISITION MODAL */}
             {acquisitionData && (
-                <div className="absolute inset-0 z-[200] pointer-events-auto">
+                <div className="absolute inset-0 z-[200] pointer-events-auto flex items-center justify-center bg-black/80">
                     <AcquisitionModal
                         item={acquisitionData.item}
                         title={acquisitionData.title}
@@ -77,77 +127,76 @@ export const GameOverlay: React.FC = () => {
                 </div>
             )}
 
-            {/* Vignette Effect */}
-            <div className="absolute inset-0 z-[-1]" style={{
-                background: 'radial-gradient(circle at center, transparent 60%, rgba(10, 5, 20, 0.85) 100%)'
-            }} />
-
-            {/* Top Bar: Score & Timer */}
-            <div className="absolute top-4 left-0 right-0 flex justify-between px-6 items-start">
-                {/* Score */}
-                <div className="flex flex-col">
-                    <span className="text-xs text-gray-400 tracking-widest">SCORE</span>
-                    <span className="text-2xl font-black text-white">{stats.score.toLocaleString()}</span>
-                </div>
-
-                {/* Timer (Survival) */}
-                <div className="flex flex-col items-center">
-                    <div className="bg-black/50 border border-white/20 px-4 py-1 backdrop-blur-sm rounded">
-                        <span className="text-2xl font-bold text-[#00FFFF] tracking-widest">{timeString}</span>
+            {/* 2. CLASS SELECTION MODAL (The Choice) */}
+            {showClassSelection && (
+                <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center pointer-events-auto z-[300]">
+                    <div className="text-6xl font-black text-amber-500 tracking-[0.5em] mb-4 blur-[1px] animate-pulse">
+                        INITIATE LINK
                     </div>
-                    <span className="text-[10px] text-gray-500 mt-1">SURVIVED</span>
-                </div>
+                    <h2 className="text-lg text-amber-700 font-bold mb-12 tracking-widest">SELECT COMBAT PROTOCOL</h2>
 
-                {/* Enemies / Misc */}
-                <div className="flex flex-col items-end">
-                    <span className="text-xs text-gray-400 tracking-widest">HOSTILES</span>
-                    <span className="text-2xl font-bold text-[#FF0055]">{stats.enemiesAlive}</span>
-                </div>
-            </div>
-
-            {/* Bottom Bar: HP & XP */}
-            <div className="absolute bottom-8 left-6 right-6 flex flex-col gap-2">
-                {/* Level Badge */}
-                <div className="absolute -top-10 left-0 bg-white/10 p-2 rounded backdrop-blur-md">
-                    <span className="text-sm font-bold text-white">LVL {stats.level}</span>
-                </div>
-                {/* HP Bar */}
-                <div className="w-full h-4 bg-gray-900/80 border border-gray-700 rounded overflow-hidden relative">
-                    <div
-                        className="h-full bg-[#FF0055] transition-all duration-200 ease-out"
-                        style={{ width: `${hpPercent}%`, boxShadow: '0 0 10px #FF0055' }}
-                    />
-                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white/80 tracking-wider">
-                        HP {Math.ceil(stats.hp)} / {stats.maxHp}
-                    </span>
-                </div>
-
-                <div className="flex justify-between items-end">
-                    {/* Level & XP */}
-                    <div className="flex flex-col gap-1">
-                        <div className="flex justify-between text-[10px] font-mono text-[#00FFFF] lowercase tracking-tighter">
-                            <span>lv.{stats.level}</span>
-                            <span>{Math.floor(stats.xp)}/{stats.xpToNextLevel}</span>
-                        </div>
-                        <div className="w-48 h-1 bg-black/40 border border-[#00FFFF]/30">
-                            <div
-                                className="h-full bg-[#00FFFF] shadow-[0_0_10px_#00FFFF]"
-                                style={{ width: `${(stats.xp / stats.xpToNextLevel) * 100}%` }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* [CORE LOOP] Extraction Status */}
-                    <div className="flex flex-col items-center ml-4">
-                        <div className="text-xl font-black text-[#00FF00] tracking-tighter animate-pulse">
-                            ACTIVE
-                        </div>
-                        <div className="text-[8px] font-bold text-gray-500 tracking-widest -mt-1 uppercase">
-                            STATUS
-                        </div>
+                    <div className="flex gap-4 md:gap-8 flex-wrap justify-center">
+                        {/* MELEE */}
+                        <button onClick={() => handleSelectClass('SCAVENGER')} className="group flex flex-col items-center p-8 border-2 border-amber-900 bg-black hover:border-amber-400 hover:bg-amber-900/20 transition-all w-64">
+                            <span className="text-6xl mb-6 group-hover:scale-125 transition-transform duration-300 shadow-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]">🔧</span>
+                            <span className="text-3xl font-black text-amber-500 mb-2">SMASH</span>
+                            <span className="text-xs text-amber-300/50 tracking-widest mb-4">MELEE / TANK</span>
+                            <p className="text-xs text-amber-600 text-center leading-relaxed">
+                                "I don't plan. I hit."<br />High durability. Close quarters dominance.
+                            </p>
+                        </button>
+                        {/* RANGED */}
+                        <button onClick={() => handleSelectClass('RANGER')} className="group flex flex-col items-center p-8 border-2 border-amber-900 bg-black hover:border-amber-400 hover:bg-amber-900/20 transition-all w-64">
+                            <span className="text-6xl mb-6 group-hover:scale-125 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]">🔫</span>
+                            <span className="text-3xl font-black text-amber-500 mb-2">SHOOT</span>
+                            <span className="text-xs text-amber-300/50 tracking-widest mb-4">RANGED / DPS</span>
+                            <p className="text-xs text-amber-600 text-center leading-relaxed">
+                                "Keep them away."<br />Precision strikes. High damage output.
+                            </p>
+                        </button>
+                        {/* SUMMONER */}
+                        <button onClick={() => handleSelectClass('WEAVER')} className="group flex flex-col items-center p-8 border-2 border-amber-900 bg-black hover:border-amber-400 hover:bg-amber-900/20 transition-all w-64">
+                            <span className="text-6xl mb-6 group-hover:scale-125 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]">💠</span>
+                            <span className="text-3xl font-black text-amber-500 mb-2">COMMAND</span>
+                            <span className="text-xs text-amber-300/50 tracking-widest mb-4">SUMMONER / TECH</span>
+                            <p className="text-xs text-amber-600 text-center leading-relaxed">
+                                "Fight for me."<br />Automated turrets. Area control.
+                            </p>
+                        </button>
                     </div>
                 </div>
-            </div>
+            )}
+
+            {/* 3. TRIAL END MODAL (The Verdict) */}
+            {showTrialEnd && (
+                <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center pointer-events-auto z-[300]">
+                    <h2 className="text-4xl text-amber-500 font-black mb-4 tracking-widest">NEURAL LINK SEVERED</h2>
+                    <p className="text-amber-700 mb-12 max-w-lg text-center leading-relaxed">
+                        Synchronization complete. Analyze performance data.<br />
+                        <span className="text-white mt-4 block">Do you wish to permanently bond with this class?</span>
+                    </p>
+
+                    <div className="flex gap-8">
+                        <button
+                            onClick={handleRejectTrial}
+                            className="px-8 py-4 border border-red-900 text-red-700 hover:bg-red-900/20 hover:text-red-500 hover:border-red-500 transition-all flex flex-col items-center gap-1 group"
+                        >
+                            <span className="text-xl font-bold group-hover:scale-105 transition-transform">[ REJECT ]</span>
+                            <span className="text-[10px] opacity-70">TRY ANOTHER PROTOCOL</span>
+                        </button>
+
+                        <button
+                            onClick={handleConfirmTrial}
+                            className="relative px-12 py-4 bg-amber-600 text-black font-bold hover:bg-amber-400 transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_40px_rgba(245,158,11,0.6)] flex flex-col items-center gap-1 group overflow-hidden"
+                        >
+                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 pointer-events-none" />
+                            <span className="text-2xl font-black group-hover:scale-105 transition-transform">[ BOND CONFIRMED ]</span>
+                            <span className="text-[10px] font-mono opacity-80">LOCK IN CLASS PERMANENTLY</span>
+                        </button>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 };

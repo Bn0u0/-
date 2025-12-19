@@ -40,6 +40,15 @@ const App: React.FC = () => {
 
         const unsubscribe = metaGame.subscribe((newState: MetaGameState) => {
             setMetaState({ ...newState });
+
+            // [FIX] Sync AppState with MetaGame Navigation
+            if (newState.currentScreen === 'GAME_LOOP') {
+                setAppState('COMBAT');
+            } else if (newState.currentScreen === 'HIDEOUT' || newState.currentScreen === 'ARSENAL') {
+                setAppState('HIDEOUT'); // Arsenal is a sub-screen of Hideout in App structure
+            } else if (newState.currentScreen === 'GAME_OVER') {
+                setAppState('GAME_OVER');
+            }
         });
 
         const onShowDraft = (data: { choices: any[] }) => {

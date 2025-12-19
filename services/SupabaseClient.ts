@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
 // 請在 .env 檔案或這裡直接填入你的 Supabase 專案資訊
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// 請在 .env 檔案或這裡直接填入你的 Supabase 專案資訊
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder';
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-    console.warn('⚠️ [Supabase] Missing Env Vars (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)');
+if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    console.warn('⚠️ [Supabase] Missing Env Vars (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY). Cloud features will fail.');
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);

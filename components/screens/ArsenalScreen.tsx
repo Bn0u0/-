@@ -126,15 +126,20 @@ export const ArsenalScreen: React.FC = () => {
 
     return (
         <TacticalLayout>
-            <div className="w-full h-full grid grid-cols-12 gap-6 p-4">
+            <div className="w-full h-full flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-6 p-2 md:p-4 overflow-y-auto md:overflow-hidden">
 
-                {/* 1. STASH (Left - 3 Cols) */}
-                <div className="col-span-3 flex flex-col gap-4 border-r border-amber-dim/30 pr-4">
+                {/* 1. STASH (Mobile: Bottom Order 2 | Desktop: Left Order 1) */}
+                {/* On Mobile, maybe put Stash at bottom? Or keep Top? Let's keep visually 1st for flow. 
+                    Actually, usually you see Character -> Items. 
+                    Let's use Order classes. Mobile: Character (1), Stash (2), Inspector (3).
+                    Desktop: Stash (1), Character (2), Inspector (3).
+                */}
+                <div className="order-2 md:order-1 col-span-3 flex flex-col gap-4 border-b md:border-b-0 md:border-r border-amber-dim/30 pb-4 md:pb-0 md:pr-4 h-64 md:h-full shrink-0">
                     <div className="text-xl font-bold tracking-widest text-amber-neon mb-2 flex justify-between">
                         <span>{t('STASH_HEADER')} // {t(`SLOT_${activeSlot.toUpperCase()}`)}</span>
                         <span className="text-sm self-end opacity-50">{filteredStash.length}</span>
                     </div>
-                    <div className="flex-1 overflow-y-auto flex flex-col gap-2 custom-scrollbar">
+                    <div className="flex-1 overflow-y-auto flex flex-col gap-2 custom-scrollbar bg-black/20 p-2">
                         {filteredStash.map(item => (
                             <ItemCard
                                 key={item.uid}
@@ -151,25 +156,25 @@ export const ArsenalScreen: React.FC = () => {
                     </div>
                 </div>
 
-                {/* 2. PAPER DOLL (Center - 5 Cols) */}
-                <div className="col-span-5 flex flex-col items-center relative">
+                {/* 2. PAPER DOLL (Mobile: Top Order 1 | Desktop: Center Order 2) */}
+                <div className="order-1 md:order-2 col-span-5 flex flex-col items-center relative min-h-[400px]">
                     {/* Header */}
-                    <div className="w-full text-center border-b border-amber-dim/20 pb-2 mb-8">
-                        <span className="text-2xl font-black tracking-[0.5em] text-white/20">{t('LOADOUT_HEADER')}</span>
+                    <div className="w-full text-center border-b border-amber-dim/20 pb-2 mb-4 md:mb-8">
+                        <span className="text-xl md:text-2xl font-black tracking-[0.5em] text-white/20">{t('LOADOUT_HEADER')}</span>
                     </div>
 
                     {/* Doll Layout */}
-                    <div className="relative w-full h-[500px] flex items-center justify-center">
+                    <div className="relative w-full h-full flex items-center justify-center">
                         {/* Humanoid Outline (Abstract) */}
                         <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
                             {/* Placeholder for SVG Body Outline */}
-                            <div className="w-64 h-full border border-amber-dim/30 rounded-full"></div>
+                            <div className="w-48 md:w-64 h-[80%] border border-amber-dim/30 rounded-full"></div>
                         </div>
 
-                        {/* Slots */}
-                        <div className="grid grid-cols-2 gap-x-20 gap-y-8 relative z-10">
+                        {/* Slots - Compact Grid on Mobile */}
+                        <div className="grid grid-cols-2 gap-x-12 gap-y-6 md:gap-x-20 md:gap-y-8 relative z-10 transform scale-90 md:scale-100">
                             {/* Head (Top Center) - Absolute positioning hack or grid tweak */}
-                            <div className="col-span-2 flex justify-center pb-8">
+                            <div className="col-span-2 flex justify-center pb-4 md:pb-8">
                                 <SlotNode
                                     slot={t('SLOT_HEAD')}
                                     item={profile.loadout.head}
@@ -223,8 +228,8 @@ export const ArsenalScreen: React.FC = () => {
                     </div>
                 </div>
 
-                {/* 3. INSPECTOR (Right - 4 Cols) */}
-                <div className="col-span-4 bg-amber-dark/50 border border-amber-dim/20 p-6 flex flex-col gap-6">
+                {/* 3. INSPECTOR (Mobile: Order 3 | Desktop: Right Order 3) */}
+                <div className="order-3 col-span-4 bg-amber-dark/50 border border-amber-dim/20 p-4 md:p-6 flex flex-col gap-4 md:gap-6 min-h-[300px]">
                     <div className="text-xl font-bold tracking-widest text-amber-neon border-b border-amber-dim/30 pb-2">
                         {t('INSPECTOR_HEADER')}
                     </div>

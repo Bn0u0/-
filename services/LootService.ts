@@ -108,10 +108,32 @@ export class LootService {
     public trySpawnLoot(x: number, y: number, chanceMod: number = 1.0) {
         const roll = Math.random();
 
-        // 15% Chance for Random Weapon (Tier 0-1 for now)
+        // 15% Chance for Random Weapon
         if (roll < 0.15 * chanceMod) {
-            // 50/50 Chance for T0 or T1
-            const tier = Math.random() > 0.5 ? 1 : 0;
+            // [OPERATION ESCALATION] Step 2: High Tier Loot
+            // Logic based on Wave Number
+            const wave = (this.scene as any).waveManager ? (this.scene as any).waveManager.wave : 1;
+
+            let tier = 0;
+            // Wave Scaling Logic
+            if (wave < 5) {
+                // Wave 1-4: T0 (50%), T1 (50%)
+                tier = Math.random() > 0.5 ? 1 : 0;
+            } else if (wave < 10) {
+                // Wave 5-9: T1 (60%), T2 (40%)
+                tier = Math.random() > 0.6 ? 1 : 2;
+            } else if (wave < 15) {
+                // Wave 10-14: T2 (60%), T3 (40%)
+                tier = Math.random() > 0.6 ? 2 : 3;
+            } else if (wave < 20) {
+                // Wave 15-19: T3 (60%), T4 (40%)
+                tier = Math.random() > 0.6 ? 3 : 4;
+            } else {
+                // Wave 20+: T4 (50%), T5 (50%)
+                tier = Math.random() > 0.5 ? 4 : 5;
+            }
+
+            console.log(`🎲 [Loot] Spawning Weapon Tier ${tier} (Wave ${wave})`);
             this.spawnWeapon(x, y, tier);
             return;
         }

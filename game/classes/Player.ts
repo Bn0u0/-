@@ -6,6 +6,7 @@ import { ItemLibrary } from '../data/library/items';
 import { ClassConfig } from '../factories/PlayerFactory';
 import { WeaponSystem } from '../systems/WeaponSystem';
 import { inventoryService } from '../../services/InventoryService'; // [NEW]
+import { EventBus } from '../../services/EventBus';
 // import { cardSystem } from '../systems/CardSystem'; // [VOID]
 // import { WeaponInstance } from '../../types'; // [VOID]
 
@@ -269,23 +270,47 @@ export class Player extends Phaser.GameObjects.Container {
         }
     }
 
+    public level: number = 1; // [OPERATION ESCALATION] Step 3: Stat Scaling
+
+    // ... (lines 40-272)
+
+    public updateLevelStats(newLevel: number) {
+        this.level = newLevel;
+        this.recalculateStats();
+
+        // Heal on Level Up?
+        this.stats.hp = this.stats.maxHp;
+        EventBus.emit('SHOW_FLOATING_TEXT', { x: this.x, y: this.y - 60, text: "FULL HEAL", color: "#00FF00" });
+    }
+
     public recalculateStats() {
         if (!this.classConfig) return;
 
         // 1. Get Loadout Stats from Inventory Service
-        // We assume the player uses the global singleton state for local player
-        // For remote players, we might need to sync this data differently, but for MVP local:
         const loadout = inventoryService.getState().loadout;
         const totalStats = inventoryService.calculateTotalStats(loadout, this.classId);
 
         // 2. Base Config
-        // Map Class Config to Stats (if not already covered)
-        // classConfig.stats.speed is Base, Items add to it
         const baseHp = this.classConfig.stats.hp;
         const baseSpeed = this.classConfig.stats.speed;
 
+        // [OPERATION ESCALATION] Level Scaling
+        // HP: +10% per Level
+        // DMG: +5% per Level
+        const levelMultHp = 1 + ((this.level - 1) * 0.1);
+        const levelMultDmg = 1 + ((this.level - 1) * 0.05);
+
         // 3. Apply
-        this.currentStats.maxHp = Math.floor(baseHp + totalStats.hpMax);
+        this.currentStats.maxHp = Math.floor((baseHp + totalStats.hpMax) * levelMultHp);
+
+        // Apply to current maxHp logic (update stats.maxHp)
+        this.stats.maxHp = this.currentStats.maxHp;
+
+        this.currentStats.atk = Math.max(1, totalStats.damage) * levelMultDmg;
+
+        // Speed: Base * (1 + speed/1000?) or Base + Speed?
+        // Let's say 100 speed = +1.0 base speed.
+        this.currentStats.speed = baseSpeed + (totalStats.speed / 200);
         this.currentStats.atk = Math.floor(this.classConfig.stats.atk + totalStats.damage); // Add item damage to base atk? Or replace? 
         // WeaponSystem uses 'currentStats.damage' usually? 
         // Let's assume WEAPON DAMAGE is the main source, and we add Class ATK as bonus?

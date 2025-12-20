@@ -78,32 +78,32 @@ export const GameOverlay: React.FC = () => {
         <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between overflow-hidden font-mono select-none">
 
             {/* --- HUD: TOP BAR --- */}
-            <div className="flex justify-between items-start z-10">
+            <div className="flex justify-between items-start z-10 w-full gap-2">
                 {/* HP BAR */}
-                <div className="flex flex-col gap-1">
-                    <div className="w-64 bg-black/50 border border-amber-900 h-8 relative skew-x-[-15deg]">
+                <div className="flex flex-col gap-1 shrink-0">
+                    <div className="w-32 md:w-64 bg-black/50 border border-amber-900 h-6 md:h-8 relative skew-x-[-15deg]">
                         <div
                             className="absolute top-0 left-0 h-full bg-amber-600 transition-all duration-200"
                             style={{ width: `${(stats.hp / stats.maxHp) * 100}%` }}
                         />
-                        <div className="absolute inset-0 flex items-center justify-center text-xs font-mono text-white skew-x-[15deg]">
-                            HP: {Math.floor(stats.hp)} / {stats.maxHp}
+                        <div className="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-mono text-white skew-x-[15deg]">
+                            HP: {Math.floor(stats.hp)}
                         </div>
                     </div>
                 </div>
 
                 {/* TIMER & SCORE */}
-                <div className="flex flex-col items-center">
-                    <div className="bg-black/50 border border-white/20 px-4 py-1 backdrop-blur-sm rounded mb-1">
-                        <span className="text-2xl font-bold text-amber-400 tracking-widest">{timeString}</span>
+                <div className="flex flex-col items-center grow">
+                    <div className="bg-black/50 border border-white/20 px-2 md:px-4 py-1 backdrop-blur-sm rounded mb-1">
+                        <span className="text-xl md:text-2xl font-bold text-amber-400 tracking-widest">{timeString}</span>
                     </div>
-                    <span className="text-[10px] text-gray-500">SURVIVED</span>
+                    {/* <span className="text-[10px] text-gray-500 hidden md:block">SURVIVED</span> */}
                 </div>
 
                 {/* LEVEL Info */}
-                <div className="text-right">
-                    <div className="text-2xl font-black text-amber-500 italic">LV. {stats.level}</div>
-                    <div className="w-32 h-1 bg-gray-800 mt-1 ml-auto">
+                <div className="text-right shrink-0">
+                    <div className="text-xl md:text-2xl font-black text-amber-500 italic">LV. {stats.level}</div>
+                    <div className="w-20 md:w-32 h-1 bg-gray-800 mt-1 ml-auto">
                         <div
                             className="h-full bg-amber-400"
                             style={{ width: `${(stats.xp / stats.xpToNextLevel) * 100}%` }}

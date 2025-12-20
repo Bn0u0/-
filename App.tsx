@@ -99,6 +99,10 @@ const App: React.FC = () => {
                 });
             }
 
+            // [OPERATION ESCALATION] Step 1: Death Penalty
+            const lostItems = inventoryService.punishDeath('SCAVENGER');
+            console.log("💀 [App] Player Died. Lost Items:", lostItems);
+
             // FTUE Logic: If rookie, go to Tutorial Debrief
             if (!currentProfile.hasPlayedOnce) {
                 persistence.save({ hasPlayedOnce: true });
@@ -239,7 +243,7 @@ const App: React.FC = () => {
                 style={{ visibility: appState === 'COMBAT' ? 'visible' : 'hidden' }}
             >
                 <PhaserGame />
-                <GameOverlay />
+
 
                 {appState === 'COMBAT' && (
                     <>

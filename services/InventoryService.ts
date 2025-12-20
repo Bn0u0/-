@@ -248,21 +248,44 @@ class InventoryService {
         this.save();
     }
 
-    public punishDeath(classId: string): string | null {
-        // [OPERATION DUAL-TRACK]
-        // Death penalty: Lose Backpack + Random Stash Item?
-        // Current logic: Random stash item loss (Legacy) + Backpack clear (New)
-        this.clearBackpack();
+    public punishDeath(classId: string): string[] {
+        // [OPERATION ESCALATION] Step 1: Brutal Death
+        // Policy: "Full Drop" (裝備全噴)
+        // Action: Wipe Loadout + Wipe Backpack. Stash is Safe.
 
-        if (this.state.stash.length > 0) {
-            const idx = Math.floor(Math.random() * this.state.stash.length);
-            const item = this.state.stash[idx];
-            const name = item.displayName || "Unknown Item";
-            this.state.stash.splice(idx, 1);
-            this.save();
-            return name;
-        }
-        return null;
+        const lostItems: string[] = [];
+
+        // 1. Wipe Backpack
+        this.state.backpack.slots.forEach(item => {
+            if (item) lostItems.push(item.displayName);
+        });
+        this.state.backpack.slots.fill(null);
+
+        // 2. Wipe Loadout
+        if (this.state.loadout.mainWeapon) lostItems.push(this.state.loadout.mainWeapon.displayName);
+        if (this.state.loadout.head) lostItems.push(this.state.loadout.head.displayName);
+        if (this.state.loadout.body) lostItems.push(this.state.loadout.body.displayName);
+        if (this.state.loadout.legs) lostItems.push(this.state.loadout.legs.displayName);
+        if (this.state.loadout.feet) lostItems.push(this.state.loadout.feet.displayName);
+
+        this.state.loadout = {
+            mainWeapon: null,
+            head: null,
+            body: null,
+            legs: null,
+            feet: null
+        };
+
+        // 3. Grant Poverty Weapon (if stash is empty, to prevent softlock?)
+        // PlayerLifecycleManager handles poverty check on spawn, so we don't need to do it here.
+        // But we should ensure the player doesn't start with null weapon if they have nothing.
+        // Actually, PlayerLifecycleManager checks `if (!commander.equippedWeapon)`. 
+        // If we spawn with null loadout, it will trigger. 
+        // We just need to save.
+
+        this.save();
+        console.log(`💀 [Inventory] Death Penalty Enforced. Lost ${lostItems.length} items.`);
+        return lostItems;
     }
 
     // --- Persistence ---

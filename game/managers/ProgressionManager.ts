@@ -44,6 +44,9 @@ export class ProgressionManager {
         this.xp = 0;
         this.xpToNextLevel = Math.floor(this.xpToNextLevel * 1.5);
 
+        // [OPERATION ESCALATION] Step 3: Stat Scaling
+        player.updateLevelStats(this.level);
+
         EventBus.emit('PLAY_SFX', 'LEVEL_UP');
 
         // Visual: Shockwave

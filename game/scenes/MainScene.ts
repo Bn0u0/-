@@ -171,8 +171,52 @@ export class MainScene extends Phaser.Scene {
         EventBus.on('RESUME_GAME', () => { this.isPaused = false; this.physics.resume(); });
 
         this.physics.add.collider(this.projectileGroup, this.terrainManager.wallGroup, (proj: any) => proj.destroy());
+
+        // [OPERATION PICKUP]
+        // Register Overlap: Player vs Loot
+        // Note: We need to ensure playerManager.myUnit is ready, but it's spawn dynamic. 
+        // We can registers overlap on the Group vs Group (or Player Group if we had one).
+        // Since myUnit is re-created, we might need to add this in startMatchWithClass or use a Group for players.
+        // However, myUnit is a Container.
+        // Quick Fix: Add overlap in fixedUpdate or when player spawns?
+        // Better: Use a Player Group for physics.
+        // Current Architecture: Player is just a class wrapping a Container.
+        // Let's add it in fixedUpdate check (if (!collider) addCollider) OR just use overlap on the fly in update.
+        // Actually, easiest is to add it in `fixedUpdate` via `this.physics.overlap`.
+
         this.setupDevTools();
         EventBus.emit('SCENE_READY');
+    }
+
+    // ...
+
+    // [OPERATION PICKUP]
+    private handleLootPickup(playerContainer: any, lootSprite: any) {
+        if (!lootSprite.active) return;
+
+        const itemvar = lootSprite.getData('itemInstance');
+        if (!itemvar) return;
+
+        // Try to add to backpack
+        if (inventoryService.addToBackpack(itemvar)) {
+            // Success
+            EventBus.emit('PLAY_SFX', 'PICKUP'); // Need SFX
+            EventBus.emit('SHOW_TOAST', `拾取: ${itemvar.displayName}`);
+
+            // FX
+            this.tweens.add({
+                targets: lootSprite,
+                y: lootSprite.y - 50,
+                alpha: 0,
+                scale: 1.5,
+                duration: 300,
+                onComplete: () => lootSprite.destroy()
+            });
+        } else {
+            // Full
+            // EventBus.emit('SHOW_TOAST', '背包已滿 (Backpack Full)');
+            // Bounce effect?
+        }
     }
 
     handleResize(gameSize: Phaser.Structs.Size) {
@@ -280,6 +324,12 @@ export class MainScene extends Phaser.Scene {
         this.extractionManager.update(time, delta);
         this.waypointManager.update(); // [NEW] Update HUD
         this.handleExtraction();
+
+        // [OPERATION PICKUP]
+        // Check Loot Overlap
+        if (this.lootService && this.lootService.group && myUnit) {
+            this.physics.overlap(myUnit, this.lootService.group, (p, l) => this.handleLootPickup(p, l));
+        }
 
         if (time % 10 < 1) this.emitStatsUpdate();
     }

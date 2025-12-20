@@ -12,6 +12,9 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
     const [origin, setOrigin] = useState({ x: 0, y: 0 }); // Where touch started
     const [current, setCurrent] = useState({ x: 0, y: 0 }); // Current touch pos
 
+    // Siege Mode State
+    const [isSiege, setIsSiege] = useState(false);
+
     // Config
     const RADIUS = 75; // Max drag radius
 
@@ -30,6 +33,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
         setOrigin({ x: clientX, y: clientY });
         setCurrent({ x: clientX, y: clientY });
         setIsVisible(true);
+        setIsSiege(false); // Reset
         onMove(0, 0);
 
         // Flick Init
@@ -48,6 +52,20 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
 
         if (dist > maxMagRef.current) maxMagRef.current = dist;
 
+        // Force Calculation (0.0 to 1.0+)
+        const force = dist / RADIUS;
+
+        // [SIEGE MODE] Visual Feedback
+        if (force > 0.9) {
+            if (!isSiege) {
+                setIsSiege(true);
+                // Haptic Feedback (Pulse)
+                if (navigator.vibrate) navigator.vibrate(30);
+            }
+        } else {
+            if (isSiege) setIsSiege(false);
+        }
+
         if (dist > RADIUS) {
             const ratio = RADIUS / dist;
             dx *= ratio;
@@ -60,6 +78,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
 
     const handlePointerUp = (e: React.PointerEvent) => {
         setIsVisible(false);
+        setIsSiege(false);
         onMove(0, 0);
         e.currentTarget.releasePointerCapture(e.pointerId);
 
@@ -101,16 +120,17 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
                         backdropFilter: 'blur(2px)'
                     }} />
 
-                    {/* Stick */}
+                    {/* Stick - Dynamic Color */}
                     <div style={{
                         position: 'absolute',
                         top: current.y - origin.y - 25,
                         left: current.x - origin.x - 25,
                         width: 50, height: 50,
                         borderRadius: '50%',
-                        background: 'rgba(255, 0, 85, 0.8)',
-                        boxShadow: '0 0 15px #FF0055',
-                        border: '2px solid rgba(255, 255, 255, 0.5)'
+                        background: isSiege ? 'rgba(0, 255, 255, 0.8)' : 'rgba(255, 0, 85, 0.8)',
+                        boxShadow: isSiege ? '0 0 20px #00FFFF' : '0 0 15px #FF0055',
+                        border: '2px solid rgba(255, 255, 255, 0.5)',
+                        transition: 'background 0.1s, box-shadow 0.1s'
                     }} />
                 </div>
             )}

@@ -54,6 +54,11 @@ export interface ItemDef {
 
   // [NEW] Behavior for WeaponSystem
   behavior?: 'MELEE_SWEEP' | 'HOMING_ORB' | 'SHOCKWAVE' | 'LASER' | 'BOOMERANG' | 'PISTOL_SHOT' | 'DRONE_BEAM';
+
+  // [NEW] Siege Mode
+  controlType?: 'AUTO' | 'HYBRID' | 'MANUAL';
+  siegeBehavior?: string; // Optional description of siege effect
+
   projectileId?: string;
 
   // 基礎數值

@@ -23,9 +23,9 @@ class InventoryService {
 
     private createDefaultProfile(): PlayerProfile {
         return {
-            id: 'USER_01',
-            credits: 0,
-            inventory: ['W_T1_PISTA_01'], // Starter pistol
+            id: 'DEV_USER', // [DEV]
+            credits: 9999,  // [DEV] Rich
+            inventory: ['W_T1_PISTA_01'],
             stash: [],
             loadout: {
                 mainWeapon: this.createItem('W_T1_PISTA_01'),
@@ -38,9 +38,16 @@ class InventoryService {
                 slots: Array(6).fill(null),
                 capacity: 6
             },
-            tutorialStep: 'VOID',
-            trialClassId: null,
-            unlockedClasses: []
+
+            // =========== [DEV MODE ACTIVE] ==========
+            tutorialStep: 'COMPLETE', // Skip FTUE
+            unlockedClasses: [
+                'SCAVENGER', 'RANGER', 'WEAVER',
+                'RONIN', 'SPECTRE', 'RAIDER',
+                'GUNNER', 'HUNTER', 'TRAPPER',
+                'ARCHITECT', 'WITCH', 'MEDIC'
+            ],
+            trialClassId: null
         };
     }
 

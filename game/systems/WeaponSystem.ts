@@ -14,18 +14,29 @@ export class WeaponSystem {
         this.projectiles = scene.add.group();
     }
 
-    public fire(weapon: ItemInstance, source: { x: number, y: number, rotation: number, id: string }, playerStats: any, target?: { x: number, y: number }) {
+    public fire(weapon: ItemInstance, source: { x: number, y: number, rotation: number, id: string, isSiege?: boolean }, playerStats: any, target?: { x: number, y: number }) {
         const def = ItemLibrary.get(weapon.defId);
         if (!def || !def.behavior) return;
 
         // Combine Stats (Item Computed + Player)
         // For now, simplicity:
+        let damage = weapon.computedStats.damage;
+        let range = weapon.computedStats.range;
+
+        // [SIEGE MODE] Modifiers
+        if (source.isSiege) {
+            damage *= 1.25; // 25% Damage Boost
+
+            // Behavior Specifics
+            if (def.siegeBehavior === 'EARTHSHATTER') range *= 1.5; // Bigger AoE
+        }
+
         const stats = {
-            damage: weapon.computedStats.damage,
+            damage: damage,
             speed: weapon.computedStats.speed || 400,
-            range: weapon.computedStats.range,
+            range: range,
             projectileCount: 1, // TODO: Add to ItemStats?
-            spreadMod: 0
+            spreadMod: source.isSiege ? 0.5 : 1.0 // [SIEGE] Tighter Spread
         };
 
         EventBus.emit('PLAY_SFX', 'SHOOT');

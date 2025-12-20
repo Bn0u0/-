@@ -11,7 +11,9 @@ export const T2_WEAPONS: ItemDef[] = [
         behavior: 'PISTOL_SHOT',
         baseStats: { damage: 18, range: 500, fireRate: 150, speed: 1200, critChance: 0.1, defense: 0, hpMax: 0 },
         description: '舊時代的可靠夥伴。平衡性極佳。',
-        icon: 'weapon_ar'
+        icon: 'weapon_ar',
+        controlType: 'HYBRID',
+        siegeBehavior: 'FULL_AUTO_KITE'
     },
     {
         id: 'w_sledgehammer_t2',
@@ -23,7 +25,9 @@ export const T2_WEAPONS: ItemDef[] = [
         behavior: 'SHOCKWAVE', // 震波攻擊
         baseStats: { damage: 80, range: 150, fireRate: 1500, speed: 1.0, critChance: 0.05, defense: 0, hpMax: 0 },
         description: '裝有液壓推進裝置的大錘。能引發地面震波。',
-        icon: 'weapon_hammer'
+        icon: 'weapon_hammer',
+        controlType: 'MANUAL',
+        siegeBehavior: 'EARTHSHATTER'
     },
     {
         id: 'w_sawblade_t2',
@@ -35,6 +39,8 @@ export const T2_WEAPONS: ItemDef[] = [
         behavior: 'BOOMERANG', // 迴旋鏢邏輯
         baseStats: { damage: 40, range: 400, fireRate: 800, speed: 500, critChance: 0.15, defense: 0, hpMax: 0 },
         description: '發射高速旋轉的圓鋸，會飛回使用者手中。',
-        icon: 'weapon_sawblade'
+        icon: 'weapon_sawblade',
+        controlType: 'AUTO',
+        siegeBehavior: 'SAW_HOVER'
     }
 ];

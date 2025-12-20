@@ -11,7 +11,9 @@ export const T5_WEAPONS: ItemDef[] = [
         behavior: 'MELEE_SWEEP',
         baseStats: { damage: 999, range: 300, fireRate: 1000, speed: 1.0, critChance: 1.0, defense: 0, hpMax: 0 },
         description: 'ERROR: WEAPON_DATA_CORRUPTED. 切割空間本身的錯誤代碼。',
-        icon: 'weapon_glitch_sword'
+        icon: 'weapon_glitch_sword',
+        controlType: 'MANUAL',
+        siegeBehavior: 'TIME_STOP_SLASH'
     },
     {
         id: 'w_glitch_storm_t5',
@@ -23,6 +25,8 @@ export const T5_WEAPONS: ItemDef[] = [
         behavior: 'DRONE_BEAM',
         baseStats: { damage: 50, range: 1000, fireRate: 100, speed: 0, critChance: 0.1, defense: 0, hpMax: 0 }, // 每秒10跳
         description: '直接對視野內所有目標的內存地址進行寫入攻擊。',
-        icon: 'weapon_glitch_orb'
+        icon: 'weapon_glitch_orb',
+        controlType: 'AUTO',
+        siegeBehavior: 'AOE_DOT_FIELD'
     }
 ];

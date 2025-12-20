@@ -11,7 +11,9 @@ export const T1_WEAPONS: ItemDef[] = [
         behavior: 'PISTOL_SHOT',
         baseStats: { damage: 8, range: 300, fireRate: 120, speed: 800, critChance: 0.05, defense: 0, hpMax: 0 },
         description: '工業用的釘槍，現在用來釘頭骨。射速快但準度堪憂。',
-        icon: 'weapon_nailgun'
+        icon: 'weapon_nailgun',
+        controlType: 'HYBRID',
+        siegeBehavior: 'RETICLE_FOCUS'
     },
     {
         id: 'w_pipe_wrench_t1',
@@ -23,7 +25,9 @@ export const T1_WEAPONS: ItemDef[] = [
         behavior: 'MELEE_SWEEP',
         baseStats: { damage: 35, range: 80, fireRate: 900, speed: 1.0, critChance: 0.05, defense: 0, hpMax: 0 },
         description: '修水管的工具，或者修理不聽話的拾荒者。',
-        icon: 'weapon_wrench'
+        icon: 'weapon_wrench',
+        controlType: 'HYBRID', // Melee Hybrid = Slow Forward
+        siegeBehavior: 'SLOW_CHARGE'
     },
     {
         id: 'w_scrap_shotgun_t1',
@@ -36,6 +40,8 @@ export const T1_WEAPONS: ItemDef[] = [
         baseStats: { damage: 6, range: 200, fireRate: 1200, speed: 600, critChance: 0.05, defense: 0, hpMax: 0 },
         // 注意：WeaponSystem 需支援 projectileCount，此處為 5 發散彈
         description: '一次發射一堆廢鐵片。近距離致命。',
-        icon: 'weapon_scrap_shotgun'
+        icon: 'weapon_scrap_shotgun',
+        controlType: 'AUTO',
+        siegeBehavior: 'TIGHT_SPREAD'
     }
 ];

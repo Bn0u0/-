@@ -31,6 +31,7 @@ export class Player extends Phaser.GameObjects.Container {
     public isDashing: boolean = false;
     public isInvulnerable: boolean = false;
     public isMoving: boolean = false;
+    public isSiegeMode: boolean = false; // [SIEGE MODE]
     private dashTimer: number = 0;
     private dashCooldown: number = 0;
 
@@ -405,32 +406,77 @@ export class Player extends Phaser.GameObjects.Container {
     public autoFire(time: number, enemies: Phaser.GameObjects.Group) {
         if (this.isDashing || !this.classConfig) return;
 
-        // Stop to Shoot Rule
-        const speed = (this.body as Phaser.Physics.Arcade.Body).velocity.length();
-        if (!this.isMoving && speed < 50) {
-            const target = this.scanForTarget(enemies) as any;
-            if (target) {
-                // Face target
-                const angle = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
-                this.rotation = Phaser.Math.Angle.RotateTo(this.rotation, angle + Math.PI / 2, 0.2);
+        // [SIEGE MODE] Logic
+        const isSiege = this.isSiegeMode;
 
-                if (time > this.lastFireTime + this.fireRate) {
+        // Stop to Shoot Rule (Relaxed in Siege)
+        const speed = (this.body as Phaser.Physics.Arcade.Body).velocity.length();
+
+        // Allow fire if: Stopped OR Siege Mode (Run & Gun / Moonwalk)
+        const canFire = (!this.isMoving && speed < 50) || isSiege;
+
+        if (canFire) {
+            const target = this.scanForTarget(enemies) as any;
+            // If Hybrid/Manual Siege, aim is fixed by InputSystem usually? 
+            // InputSystem sets rotation. 
+            // Whatever, we scan for target to Lock On or just fire forward if no target?
+            // Existing logic scans for target. If found, ROTATES player to target.
+
+            // [CONFLICT]: InputSystem processes rotation based on Joystick in Siege.
+            // If we rotate to target here, we override InputSystem's aiming.
+            // For AUTO: Auto-aim is fine.
+            // For HYBRID/MANUAL: InputSystem controls aim.
+            // We should ONLY rotate if NOT in Siege (or if Auto).
+
+            // Actually, if a target is found:
+            if (target) {
+                // Only rotate if NOT Siege (Siege = Manual Aim usually, except AUTO)
+                // But AUTO Siege is "Run and Gun", maybe we still want Auto Aim?
+                // HYBRID/MANUAL Siege is "Fixed Aim" from Joystick.
+
+                const controlType = this.equippedWeapon?.def?.controlType || 'AUTO';
+                if (!isSiege || controlType === 'AUTO') {
+                    const angle = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
+                    this.rotation = Phaser.Math.Angle.RotateTo(this.rotation, angle + Math.PI / 2, 0.2);
+                }
+
+                // Fire Rate Logic
+                let effectiveFireRate = this.fireRate;
+                if (isSiege && controlType === 'AUTO') {
+                    effectiveFireRate *= 0.7; // [Overdrive] Rapid Fire
+                }
+
+                if (time > this.lastFireTime + effectiveFireRate) {
                     // Fire via WeaponSystem
                     const ws = (this.scene as any).weaponSystem as WeaponSystem;
                     if (ws && this.equippedWeapon) {
                         ws.fire(this.equippedWeapon, {
-                            x: this.x, y: this.y, rotation: angle, id: this.id
-                        }, this.currentStats, target);
+                            x: this.x, y: this.y, rotation: this.rotation - Math.PI / 2, id: this.id, // Fix rotation for fire
+                            isSiege: isSiege
+                        } as any, this.currentStats, target);
                     }
                     this.lastFireTime = time;
 
-                    // Recoil
+                    // Recoil (Apply inverse of shooting direction)
+                    const shootAngle = this.rotation - Math.PI / 2;
                     const body = this.body as Phaser.Physics.Arcade.Body;
                     body.setVelocity(
-                        body.velocity.x - Math.cos(angle) * 50,
-                        body.velocity.y - Math.sin(angle) * 50
+                        body.velocity.x - Math.cos(shootAngle) * 50,
+                        body.velocity.y - Math.sin(shootAngle) * 50
                     );
                 }
+            } else if (isSiege) {
+                // [SIEGE] Fire even without target? (Manual Aim)
+                // If MANUAL/HYBRID, we aim with joystick. We should fire if button held?
+                // But autoFire is "Auto".
+                // For now, let's keep it Target-Required to save ammo/logic, 
+                // UNLESS it's Manual Siege which usually implies manual firing. 
+                // But we don't have a "Fire Button". It's Joystick-based.
+                // So "Auto Fire" is the only fire.
+                // So we MUST fire if Siege is active, even without target, IF we want "Manual Fire feeling".
+                // Let's assume for MVP -> Must have Target. 
+                // Wait, "Moonwalk" is for Kiting. You want to shoot at the enemy chasing you.
+                // So ScanForTarget is correct.
             }
         }
     }

@@ -25,6 +25,7 @@ import { Position, Velocity, Renderable } from '../ecs/Components';
 import { CameraDirector } from '../managers/CameraDirector';
 import { PlayerLifecycleManager } from '../managers/PlayerLifecycleManager';
 import { ProgressionManager } from '../managers/ProgressionManager';
+import { WaypointManager } from '../managers/WaypointManager';
 
 type GameMode = 'SINGLE' | 'MULTI';
 
@@ -50,9 +51,12 @@ export class MainScene extends Phaser.Scene {
     public cameraDirector!: CameraDirector;
     public playerManager!: PlayerLifecycleManager;
     public progression!: ProgressionManager;
+    public waypointManager!: WaypointManager;
 
-    private enemyGroup: Phaser.GameObjects.Group | null = null;
-    private projectileGroup: Phaser.GameObjects.Group | null = null;
+    private enemyGroup!: Phaser.GameObjects.Group;
+    private projectileGroup!: Phaser.GameObjects.Group;
+
+
 
     // Glitch
     private glitchPipeline: GlitchPipeline | null = null;
@@ -115,6 +119,17 @@ export class MainScene extends Phaser.Scene {
         this.networkSyncSystem = new NetworkSyncSystem(this);
         this.combatManager = new CombatManager(this);
         this.extractionManager = new ExtractionManager(this, this.worldWidth, this.worldHeight);
+
+        // [NEW] Register Waypoints
+        this.extractionManager.getZones().forEach((z: any) => {
+            this.waypointManager.addTarget({
+                x: z.x,
+                y: z.y,
+                label: 'EXIT',
+                color: 0x00FF00
+            });
+        });
+
         this.waveManager = new WaveManager(this, this.enemyGroup);
         this.soundManager = new SoundManager();
 
@@ -156,11 +171,21 @@ export class MainScene extends Phaser.Scene {
         EventBus.on('RESUME_GAME', () => { this.isPaused = false; this.physics.resume(); });
 
         this.physics.add.collider(this.projectileGroup, this.terrainManager.wallGroup, (proj: any) => proj.destroy());
+        this.setupDevTools();
         EventBus.emit('SCENE_READY');
     }
 
     handleResize(gameSize: Phaser.Structs.Size) {
         this.cameraDirector.handleResize(gameSize);
+    }
+
+    // [DEV TOOL] Reset Profile
+    private setupDevTools() {
+        this.input.keyboard?.on('keydown-R', () => {
+            console.log("🔄 [DEV] Resetting Profile to Rookie...");
+            localStorage.clear();
+            window.location.reload();
+        });
     }
 
     private handleStartMatch(data: { mode: string, hero: string }) {
@@ -253,6 +278,7 @@ export class MainScene extends Phaser.Scene {
 
         this.runCombatLogic();
         this.extractionManager.update(time, delta);
+        this.waypointManager.update(); // [NEW] Update HUD
         this.handleExtraction();
 
         if (time % 10 < 1) this.emitStatsUpdate();

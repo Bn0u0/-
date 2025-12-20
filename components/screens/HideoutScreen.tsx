@@ -47,6 +47,15 @@ export const HideoutScreen: React.FC = () => {
         metaGame.startMatch();
     };
 
+    // Subscribe to language change to force re-render
+    const [_, setTick] = useState(0);
+    useEffect(() => {
+        const unsub = languageService.subscribe(() => setTick(t => t + 1));
+        return unsub;
+    }, []);
+
+    const t = (key: any) => languageService.t(key);
+
     return (
         <div className="absolute inset-0 bg-black text-amber-500 font-mono flex flex-col items-center justify-center pointer-events-auto">
 
@@ -55,7 +64,7 @@ export const HideoutScreen: React.FC = () => {
                 <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-start z-10">
                     <div className="flex flex-col">
                         <h1 className="text-4xl font-bold tracking-widest animate-pulse">
-                            {languageService.t('HIDEOUT_HEADER')}
+                            {t('HIDEOUT_HEADER')}
                         </h1>
                         <span className="text-xs opacity-50">UNIT_ID: 8842-ALPHA</span>
                     </div>
@@ -84,7 +93,7 @@ export const HideoutScreen: React.FC = () => {
                                     {CLASSES[selectedClass as PlayerClassID].role === 'MELEE' &&
                                         `  O  
  /|\\ 
- / \ `}
+ / \\ `}
                                     {CLASSES[selectedClass as PlayerClassID].role === 'RANGED' &&
                                         `  O_ 
  /| 
@@ -113,10 +122,10 @@ export const HideoutScreen: React.FC = () => {
                     /* --- ROOKIE MODE: THE VOID UI --- */
                     <div className="flex flex-col items-center justify-center z-10 mb-16 animate-pulse">
                         <div className="text-6xl font-black text-amber-500 tracking-[0.5em] mb-4 blur-[1px]">
-                            SYNAPSE
+                            {t('MM_TITLE_1')}
                         </div>
                         <div className="text-sm text-amber-700 tracking-widest">
-                            SYSTEM ONLINE // CONNECTING...
+                            {t('ROOT_ACCESS')} // {t('ONLINE')}...
                         </div>
                     </div>
                 )}
@@ -128,7 +137,7 @@ export const HideoutScreen: React.FC = () => {
                 >
                     <div className="absolute inset-0 bg-amber-500/0 group-hover:bg-amber-500/10 animate-scanline pointer-events-none" />
                     <span className="relative text-4xl font-black tracking-widest z-10">
-                        {isArsenalUnlocked ? languageService.t('DEPLOY_BUTTON') : "INITIATE LINK"}
+                        {isArsenalUnlocked ? t('DEPLOY_BUTTON') : t('CMD_DEPLOY')}
                     </span>
                     {/* DECO LINES */}
                     <div className="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-amber-500" />
@@ -142,7 +151,7 @@ export const HideoutScreen: React.FC = () => {
                             onClick={() => metaGame.navigateTo('ARSENAL')}
                             className="bg-black border border-amber-800 px-4 py-2 text-sm text-amber-700 hover:text-amber-400 hover:border-amber-400 transition-colors flex items-center gap-2"
                         >
-                            <span>[ {languageService.t('HOME_BTN_ARSENAL')} ]</span>
+                            <span>[ {t('HOME_BTN_ARSENAL')} ]</span>
                         </button>
                     </div>
                 )}

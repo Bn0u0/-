@@ -163,50 +163,11 @@ export class MainScene extends Phaser.Scene {
         this.cameraDirector.handleResize(gameSize);
     }
 
-    private handleStartMatch() {
+    private handleStartMatch(data: { mode: string, hero: string }) {
         if (this.isGameActive) return;
 
-        // [ONBOARDING] Check Tutorial Step
-        const tutorialStep = inventoryService.getTutorialStep();
-
-        if (tutorialStep === 'VOID') {
-            console.log("Entering Void Protocol...");
-            // Pause physics/game loop effectively by not spawning anything yet??
-            // Actually, we are scene 'starting', so we can just pause the scene immediately or enter a 'SELECT' state.
-
-            // Emit UI Event
-            EventBus.emit('SHOW_CLASS_SELECTION');
-
-            // Wait for selection
-            const onClassSelected = (classId: string) => {
-                console.log(`Class Selected: ${classId}`);
-                // InventoryService already handled setTrialClass
-
-                // Now start the actual match with this class
-                this.startMatchWithClass(classId);
-
-                // Unsubscribe
-                EventBus.off('CLASS_SELECTED', onClassSelected);
-            };
-            EventBus.on('CLASS_SELECTED', onClassSelected);
-
-            return; // EXIT here, do not proceed to normal start
-        }
-
-        if (tutorialStep === 'TRIAL') {
-            console.log("Resuming Trial Protocol...");
-            const trialClass = inventoryService.getTrialClass();
-            if (trialClass) {
-                this.startMatchWithClass(trialClass);
-                return;
-            }
-        }
-
-        // NORMAL START
-        // Initial cleanups...
-        // Note: metaService and mapManager are not defined in the provided context.
-        // Assuming `this.myClass` is the equivalent of `this.metaService.selectedHeroId` for this context.
-        this.startMatchWithClass(this.myClass);
+        console.log(`[MainScene] Starting Match with Hero: ${data.hero}`);
+        this.startMatchWithClass(data.hero);
     }
 
     private startMatchWithClass(classId: string) {

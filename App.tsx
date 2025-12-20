@@ -141,20 +141,41 @@ const App: React.FC = () => {
 
     // Called from MainMenu
     const handleStartGame = (role: string) => {
-        console.log("🚀 [App] COMMAND: START_MATCH");
+        console.log("🚀 [App] COMMAND: START_MATCH_REQUEST");
 
-        // 1. 重置 Meta 狀態
+        // [FTUE LOGIC MOVED HERE]
+        const step = inventoryService.getTutorialStep();
+
+        // 1. Reset Meta State
         metaGame.startMatch();
 
-        // 2. 切換 UI 狀態
+        // 2. Switch UI State
         setAppState('COMBAT');
 
-        // 3. [FIX] 暴力啟動指令
-        // 不再監聽 SCENE_READY。假設 Phaser 已經在背景跑了。
-        // 給 100ms 讓 DOM 切換完成 (隱藏 Menu -> 顯示 GameDiv)
+        // 3. Decide Flow
         setTimeout(() => {
-            EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
-            // 強制送一個 resize 事件給 Phaser，確保它知道現在視窗變大了
+            if (step === 'VOID') {
+                console.log("🚀 [App] FTUE: VOID -> SHOW_CLASS_SELECTION");
+                EventBus.emit('SHOW_CLASS_SELECTION');
+            } else if (step === 'TRIAL') {
+                console.log("🚀 [App] FTUE: TRIAL -> RESUME");
+                const trialClass = inventoryService.getTrialClass();
+                EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: trialClass || role });
+                window.dispatchEvent(new Event('resize'));
+            } else {
+                console.log("🚀 [App] FTUE: NORMAL -> START");
+                EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: role });
+                window.dispatchEvent(new Event('resize'));
+            }
+        }, 100);
+    };
+
+    const handleClassSelected = (classId: string) => {
+        console.log("🚀 [App] CLASS_SELECTED:", classId);
+        // Note: GameOverlay calls inventoryService.setTrialClass(classId) already
+        // We just need to start the match now
+        setTimeout(() => {
+            EventBus.emit('START_MATCH', { mode: 'SINGLE', hero: classId });
             window.dispatchEvent(new Event('resize'));
         }, 100);
     };

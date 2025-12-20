@@ -13,6 +13,7 @@ import { metaGame, MetaGameState } from './services/MetaGameService';
 import { persistence, UserProfile } from './services/PersistenceService';
 import { inventoryService } from './services/InventoryService'; // [NEW] Import
 import { EventBus } from './services/EventBus';
+import { GameOverScreen } from './components/screens/GameOverScreen'; // [NEW] Component structure
 
 
 // Application State Machine
@@ -49,8 +50,20 @@ const App: React.FC = () => {
             setMetaState({ ...newState });
 
             // [FIX] Sync AppState with MetaGame Navigation
+            console.log(`[App] State Transition: ${newState.currentScreen}`);
             if (newState.currentScreen === 'GAME_LOOP') {
                 setAppState('COMBAT');
+
+                // [CRITICAL FIX] 戰鬥啟動握手協議 (Handshake Protocol)
+                // 當 UI 切換到 COMBAT 時，明確通知 Phaser 引擎開始運作
+                setTimeout(() => {
+                    console.log("⚡ [App] Igniting Game Engine...");
+                    EventBus.emit('START_MATCH', {
+                        mode: 'SINGLE',
+                        hero: newState.selectedHeroId || 'Vanguard'
+                    });
+                }, 100);
+
             } else if (newState.currentScreen === 'HIDEOUT' || newState.currentScreen === 'ARSENAL') {
                 setAppState('HIDEOUT'); // Arsenal is a sub-screen of Hideout in App structure
             } else if (newState.currentScreen === 'GAME_OVER') {
@@ -297,43 +310,9 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {/* State: GAME_OVER (Veteran End / Death) */}
+            {/* State: GAME_OVER */}
             {appState === 'GAME_OVER' && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-hld-bg/95 backdrop-blur-md animate-in fade-in">
-                    <div className="relative flex flex-col items-center w-full max-w-lg p-8 border-y-4 border-hld-magenta bg-[rgba(30,20,40,0.95)]">
-                        {/* Background Glitch Effect */}
-                        <div className="absolute inset-0 bg-[url('/assets/ui/noise.png')] opacity-10 pointer-events-none"></div>
-
-                        <h2 className="text-6xl md:text-7xl font-black text-hld-magenta mb-2 tracking-tighter glitch-text" data-text="業績未達標">
-                            業績未達標
-                        </h2>
-                        <h3 className="text-xl md:text-2xl text-gray-500 font-mono tracking-[0.5em] mb-8">
-                            QUOTA FAILED
-                        </h3>
-
-                        <div className="flex flex-col gap-4 w-full">
-                            <button
-                                onClick={() => handleStartGame(profile.loadout.weapon)}
-                                className="group relative w-full py-4 bg-[#FF0055] hover:bg-[#ff3377] transition-all clip-path-polygon"
-                            >
-                                <span className="text-2xl font-black text-white italic tracking-widest group-hover:scale-105 block transition-transform">
-                                    再試一次 (RETRY)
-                                </span>
-                            </button>
-
-                            <button
-                                onClick={handleReturnToBase}
-                                className="w-full py-4 border border-gray-600 hover:border-white hover:bg-white/5 transition-all text-gray-400 hover:text-white tracking-widest font-bold"
-                            >
-                                回到總部 (RETURN TO HQ)
-                            </button>
-                        </div>
-
-                        <div className="mt-8 text-xs text-[#FF0055] font-mono opacity-60">
-                            ERR_CONNECTION_TERMINATED // 0xDEADBEEF
-                        </div>
-                    </div>
-                </div>
+                <GameOverScreen />
             )}
         </div>
     );

@@ -38,6 +38,13 @@ const App: React.FC = () => {
             }
         });
 
+        // [SYNC FIX] 強制將 InventoryService 的新數據寫入 Persistence
+        // 這樣下次 persistence.getProfile() 就能拿到正確的 V5 結構
+        const currentInv = inventoryService.getState();
+        if (currentInv.loadout.head === null) {
+            persistence.save(currentInv as any);
+        }
+
         const unsubscribe = metaGame.subscribe((newState: MetaGameState) => {
             setMetaState({ ...newState });
 
@@ -195,16 +202,23 @@ const App: React.FC = () => {
         setAppState('HIDEOUT');
     };
 
-    // [HOTFIX] Fail-safe for Corrupted Profile
-    if (!profile || !profile.loadout || profile.loadout.head === undefined) {
+    // [REVISED HOTFIX] Use inventoryService as the Source of Truth
+    const invState = inventoryService.getState();
+
+    // 檢查 InventoryService 的數據 (它已經有自動修復機制了)，而不是 persistence
+    if (!invState || !invState.loadout || invState.loadout.head === undefined) {
         return (
             <div className="flex h-screen items-center justify-center bg-black text-red-500 font-mono flex-col p-8 text-center">
                 <h1 className="text-4xl mb-4 font-black">SYSTEM CORRUPTED</h1>
                 <p className="text-gray-400 mb-8 max-w-md">
-                    Detected incompatible Neural Link data (V4/V5 Schema Mismatch).
+                    Critical Schema Mismatch detected.
                 </p>
                 <button
-                    onClick={() => { localStorage.clear(); window.location.reload(); }}
+                    onClick={() => {
+                        // 強制清除所有舊數據
+                        localStorage.clear();
+                        window.location.reload();
+                    }}
                     className="px-8 py-4 border-2 border-red-500 hover:bg-red-900 transition-colors uppercase tracking-widest font-bold"
                 >
                     HARD RESET (清除存檔)

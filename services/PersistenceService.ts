@@ -21,17 +21,33 @@ const DEFAULT_PROFILE: UserProfile = {
     xp: 0,
     credits: 0,
     inventory: [],
-    loadout: { weapon: 'BLADE' },
+    loadout: {
+        mainWeapon: {
+            uid: 'default_weapon',
+            defId: 'W_T1_PISTA_01',
+            def: null,
+            name: 'Pistol',
+            rarity: 'COMMON',
+            computedStats: { damage: 10 }
+        },
+        head: null,
+        body: null,
+        legs: null,
+        feet: null
+    },
     hasPlayedOnce: false,
     stats: { totalKills: 0, runsCompleted: 0 }
 };
+
+// [CRITICAL] ALIGN WITH InventoryService
+const STORAGE_KEY = 'SYNAPSE_NEO_INVENTORY_V5';
 
 class PersistenceService {
     private profile: UserProfile;
 
     constructor() {
         // 1. 先從 LocalStorage 載入 (快速啟動)
-        const saved = localStorage.getItem('project_prism_save');
+        const saved = localStorage.getItem(STORAGE_KEY);
         this.profile = saved ? JSON.parse(saved) : { ...DEFAULT_PROFILE };
 
         // 2. 嘗試背景登入並同步雲端
@@ -78,7 +94,7 @@ class PersistenceService {
     async save(updates: Partial<UserProfile>) {
         // A. 更新記憶體與本地
         this.profile = { ...this.profile, ...updates };
-        localStorage.setItem('project_prism_save', JSON.stringify(this.profile));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.profile));
 
         // B. 同步上雲 (Debounce 建議：不要每秒都傳，可在結算時呼叫)
         const user = await supabase.auth.getUser();
@@ -127,7 +143,7 @@ class PersistenceService {
             if (data.username) this.profile.username = data.username;
 
             // 更新本地快取
-            localStorage.setItem('project_prism_save', JSON.stringify(this.profile));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(this.profile));
         }
     }
 

@@ -1,8 +1,6 @@
 // [REFACTORED] Tier 1 & Tier 2 Class Structure
 export type PlayerClassID =
-  // Tier 1 (Base)
   | 'SCAVENGER' | 'RANGER' | 'WEAVER'
-  // Tier 2 (Advanced)
   | 'RONIN' | 'SPECTRE' | 'RAIDER'
   | 'GUNNER' | 'HUNTER' | 'TRAPPER'
   | 'ARCHITECT' | 'WITCH' | 'MEDIC';
@@ -38,43 +36,41 @@ export interface ItemModifier {
 // ----------------------
 // 2. 物品定義 (Static Definition)
 // ----------------------
+export type EquipmentSlot = 'mainWeapon' | 'head' | 'body' | 'legs' | 'feet';
 export type ItemType = 'WEAPON' | 'ARMOR' | 'MATERIAL' | 'ARTIFACT';
+
+export interface ItemAffinity {
+  classes: PlayerClassID[];        // 適用職業列表
+  bonusStats?: Partial<ItemStats>; // 相性加成 (綠字屬性)
+  exclusive?: boolean;             // T5 專屬鎖 (若為 true，非名單職業不可裝備)
+}
+
 export interface ItemDef {
   id: string;
   name: string;
   tier: 0 | 1 | 2 | 3 | 4 | 5;
   type: ItemType;
+  slot: EquipmentSlot;      // 明確指定槽位
 
   // [NEW] Behavior for WeaponSystem
   behavior?: 'MELEE_SWEEP' | 'HOMING_ORB' | 'SHOCKWAVE' | 'LASER' | 'BOOMERANG' | 'PISTOL_SHOT' | 'DRONE_BEAM';
+  projectileId?: string;
 
   // 基礎數值
-  baseStats: {
-    damage: number;
-    range: number;
-    fireRate: number;
-    critChance?: number;
-    speed?: number; // Added speed for projectile weapons
-    knockback?: number; // [NEW] Impact force
-  };
+  baseStats: ItemStats;     // 白字屬性
 
   // [NEW] 共生相性 (Symbiosis)
-  affinity?: {
-    classes: string[]; // 支援的職業 ID
-    bonusStats: any;
-  };
+  affinity?: ItemAffinity;
 
   // [NEW] 裝備需求
   requirements?: {
-    requiredClass?: string[]; // PlayerClassID[]
     minLevel?: number;
   };
 
   icon?: string;
   description?: string; // Added description for UI
-  rarity?: string; // Compat
+  rarity: string;
   color?: string; // Compat
-  stats?: any; // Compat for legacy code transition if needed, but trying to move away
 }
 
 // ----------------------
@@ -83,23 +79,18 @@ export interface ItemDef {
 export interface ItemInstance {
   uid: string;       // 唯一識別碼 (UUID)
   defId: string;     // 原始定義 ID
+  def: ItemDef;      // [NEW] Direct reference for easier calculations
 
   // 隨機骰出的詞條
   prefix?: ItemModifier;
   suffix?: ItemModifier;
 
   // 最終計算數值 (Base * Modifiers)
-  computedStats: {
-    damage: number;
-    range: number;
-    fireRate: number;
-    critChance: number;
-    speed?: number;
-  };
+  computedStats: ItemStats;
 
   displayName: string; // "生鏽的 鐵管步槍 之 故障"
   name: string; // "鐵管步槍" (Original Name)
-  rarity: ItemRarity; // Cached for UI ease
+  rarity: ItemRarity;
 }
 
 export type NetworkPacket =
@@ -141,20 +132,28 @@ export enum ItemRarity {
 }
 
 export interface ItemStats {
-  hp?: number;
-  shield?: number;
-  atk?: number;
-  speed?: number;
-  cdr?: number;
-  crit?: number;
-  luck?: number;
+  // 攻擊系
+  damage: number;
+  range: number;
+  fireRate: number; // ms delay
+  critChance: number; // 0.0 ~ 1.0
+  // 防禦系
+  defense: number; // 減傷值
+  hpMax: number;   // 血量上限加成
+  // 機動系
+  speed: number;   // 移動速度修正 (e.g., 1.1 = +10%)
+
+  // Legacy / Generic compat
+  knockback?: number;
 }
 
-// [OPERATION DUAL-TRACK] Economy Definitions
+// [OPERATION TITAN ARMORY] 5-Slot Loadout
 export interface Loadout {
-  mainWeapon: ItemInstance | null; // Primary Weapon (Growable)
-  module_1: ItemInstance | null;   // Active Skill / Passive
-  module_2: ItemInstance | null;
+  mainWeapon: ItemInstance | null;
+  head: ItemInstance | null;
+  body: ItemInstance | null;
+  legs: ItemInstance | null;
+  feet: ItemInstance | null;
 }
 
 export interface Backpack {

@@ -80,6 +80,8 @@ export class LootService {
             fireRate: Math.ceil(base.fireRate * (1 / fireRateMult)), // 攻速越快間隔越短. fireRate here implies 'delay' not 'rpm'
             critChance: base.critChance || 0,
             speed: base.speed || 0,
+            defense: base.defense || 0,
+            hpMax: base.hpMax || 0
         };
 
         if (prefix?.stats.critAdd) computedStats.critChance += prefix.stats.critAdd;
@@ -93,6 +95,7 @@ export class LootService {
         return {
             uid: Phaser.Utils.String.UUID(),
             defId: def.id,
+            def: def, // [NEW] Link definition
             prefix,
             suffix,
             computedStats,

@@ -159,6 +159,7 @@ export class Player extends Phaser.GameObjects.Container {
             this.equippedWeapon = {
                 uid: Phaser.Utils.String.UUID(),
                 defId: def.id,
+                def: def, // [NEW] Link definition
                 displayName: def.name,
                 name: def.name,
                 rarity: (def.rarity as ItemRarity) || ItemRarity.COMMON,
@@ -168,6 +169,8 @@ export class Player extends Phaser.GameObjects.Container {
                     fireRate: def.baseStats.fireRate,
                     critChance: def.baseStats.critChance || 0,
                     speed: def.baseStats.speed || 0,
+                    defense: def.baseStats.defense || 0,
+                    hpMax: def.baseStats.hpMax || 0
                 }
             };
         }

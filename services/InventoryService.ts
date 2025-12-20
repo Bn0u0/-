@@ -23,16 +23,18 @@ class InventoryService {
 
     private createDefaultProfile(): PlayerProfile {
         return {
-            id: 'USER_01', // [RESTORED]
+            id: 'USER_01',
             credits: 0,
             inventory: ['W_T1_PISTA_01'], // Starter pistol
-            stash: [], // [RESTORED]
+            stash: [],
             loadout: {
                 mainWeapon: this.createItem('W_T1_PISTA_01'),
-                module_1: null,
-                module_2: null
+                head: null,
+                body: null,
+                legs: null,
+                feet: null
             },
-            backpack: { // [RESTORED]
+            backpack: {
                 slots: Array(6).fill(null),
                 capacity: 6
             },
@@ -91,6 +93,7 @@ class InventoryService {
         return {
             uid: Utils.String.UUID(),
             defId: defId,
+            def: base, // [NEW] Link definition
             displayName: base.name,
             name: base.name,
             rarity: (base.rarity as ItemRarity) || ItemRarity.COMMON,

@@ -191,6 +191,24 @@ const App: React.FC = () => {
         setAppState('HIDEOUT');
     };
 
+    // [HOTFIX] Fail-safe for Corrupted Profile
+    if (!profile || !profile.loadout || profile.loadout.head === undefined) {
+        return (
+            <div className="flex h-screen items-center justify-center bg-black text-red-500 font-mono flex-col p-8 text-center">
+                <h1 className="text-4xl mb-4 font-black">SYSTEM CORRUPTED</h1>
+                <p className="text-gray-400 mb-8 max-w-md">
+                    Detected incompatible Neural Link data (V4/V5 Schema Mismatch).
+                </p>
+                <button
+                    onClick={() => { localStorage.clear(); window.location.reload(); }}
+                    className="px-8 py-4 border-2 border-red-500 hover:bg-red-900 transition-colors uppercase tracking-widest font-bold"
+                >
+                    HARD RESET (清除存檔)
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className="app-container relative w-full h-full overflow-hidden">
             {/* Background Effects */}

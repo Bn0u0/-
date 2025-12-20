@@ -15,7 +15,15 @@ class InventoryService {
     private load(): PlayerProfile {
         try {
             const raw = localStorage.getItem(STORAGE_KEY_V4);
-            if (raw) return JSON.parse(raw);
+            if (raw) {
+                const data = JSON.parse(raw);
+                // [HOTFIX] Check for Legacy Save (Missing V5 Schema)
+                if (!data.loadout || data.loadout.head === undefined) {
+                    console.warn("⚠️ [Inventory] Detected Legacy Save. Wiping for V5 Schema.");
+                    return this.createDefaultProfile();
+                }
+                return data;
+            }
         } catch (e) { console.error(e); }
 
         return this.createDefaultProfile();
@@ -23,13 +31,13 @@ class InventoryService {
 
     private createDefaultProfile(): PlayerProfile {
         return {
-            id: 'DEV_USER', // [DEV]
+            id: 'DEV_USER_V5', // [DEV] Force New ID
             credits: 9999,  // [DEV] Rich
             inventory: ['W_T1_PISTA_01'],
             stash: [],
             loadout: {
                 mainWeapon: this.createItem('W_T1_PISTA_01'),
-                head: null,
+                head: null, // [CRITICAL] V5 Schema
                 body: null,
                 legs: null,
                 feet: null

@@ -118,6 +118,7 @@ export class MainScene extends Phaser.Scene {
         this.cameraDirector = new CameraDirector(this, this.worldWidth, this.worldHeight);
         this.playerManager = new PlayerLifecycleManager(this);
         this.progression = new ProgressionManager(this);
+        this.waypointManager = new WaypointManager(this); // [FIX] Initialize WaypointManager
 
         // Init Systems
         this.lootService = new LootService(this);
@@ -177,7 +178,13 @@ export class MainScene extends Phaser.Scene {
         EventBus.on('JOYSTICK_AIM', (data: { x: number, y: number, isFiring: boolean }) => this.inputSystem.setVirtualAim(data.x, data.y, data.isFiring));
         EventBus.on('JOYSTICK_SKILL', (skill: string) => this.inputSystem.triggerSkill(skill));
 
+        console.log("🔊 [MainScene] Registering START_MATCH Listener...");
         EventBus.on('START_MATCH', this.handleStartMatch, this);
+        console.log(`🔊 [MainScene] Listener Registered. Count: ${EventBus.listenerCount('START_MATCH')}`);
+
+        // [DEBUG] Check Instance Consistency
+        (window as any).SceneEventBus = EventBus;
+
         EventBus.on('ENEMY_KILLED', (enemy: any) => this.handleEnemyKill(enemy));
         EventBus.on('GAME_OVER_SYNC', this.gameOver, this);
         EventBus.on('RESUME_GAME', () => { this.isPaused = false; this.physics.resume(); });
@@ -244,37 +251,77 @@ export class MainScene extends Phaser.Scene {
         });
     }
 
+    // [NEW] 1. 統一的啟動入口 (強制重置)
     private handleStartMatch(data: { mode: string, hero: string }) {
-        if (this.isGameActive) return;
+        console.log(`[MainScene] 🟢 Received START_MATCH Command for: ${data.hero}`);
 
-        console.log(`[MainScene] Starting Match with Hero: ${data.hero}`);
+        // 無論當前狀態如何，強制執行「掃地協議」
+        this.cleanStart();
+
+        // 啟動新一局
         this.startMatchWithClass(data.hero);
     }
 
-    private startMatchWithClass(classId: string) {
-        this.isGameActive = true;
-        this.isPaused = false;
+    // [NEW] 2. 掃地協議 (The Cleanup Protocol)
+    private cleanStart() {
+        console.log("[MainScene] 🧹 Cleaning up previous match state...");
 
-        // ... (Original logic moved here)
-        // 1. Map Setup
-        // Note: mapManager is not defined in the provided context.
-        // Assuming terrainManager.generateWorld() is the equivalent of mapManager.generateMap() for this context.
+        // A. 喚醒物理引擎 (關鍵修復！)
+        if (this.physics.world.isPaused) {
+            this.physics.resume();
+        }
+        this.isPaused = false;
+        this.isGameActive = false; // 先設為 false，等生成完再開
+
+        // B. 清理舊實體 (防止多重身/殘影)
+        if (this.enemyGroup) this.enemyGroup.clear(true, true);
+        if (this.projectileGroup) this.projectileGroup.clear(true, true);
+
+        // 清除掉落物 (如果有)
+        if (this.lootService && this.lootService['group']) {
+            // @ts-ignore
+            this.lootService['group'].clear(true, true);
+        }
+
+        // C. 銷毀舊玩家
+        if (this.playerManager.myUnit) {
+            this.playerManager.myUnit.destroy();
+            this.playerManager.myUnit = null; // 強制設空
+        }
+
+        // D. 重置進度 (如果需要)
+        // this.waveManager.reset(); 
+    }
+
+    // [MODIFIED] 3. 啟動邏輯
+    private startMatchWithClass(classId: string) {
+        console.log("[MainScene] ⚡ Initializing new match sequences...");
+
+        // 1. 生成地圖 (重新生成或重置)
         this.terrainManager.generateWorld();
 
-        // 2. Player Spawn
-        // Note: mapManager.getPlayerSpawnPoint() is not defined.
-        // Using existing worldWidth/Height for spawn point.
-        const player = this.playerManager.spawnPlayer(classId, this.worldWidth / 2, this.worldHeight / 2, this.networkSyncSystem, this.waveManager);
+        // 2. 生成玩家
+        // 確保座標是安全的出生點
+        const startX = this.worldWidth / 2;
+        const startY = this.worldHeight / 2;
+        // Reset player light reference if unit destroyed
+        if (this.playerLight) {
+            this.playerLight.setPosition(startX, startY);
+        }
 
-        // 3. Camera
+        const player = this.playerManager.spawnPlayer(classId, startX, startY, this.networkSyncSystem, this.waveManager);
+
+        // 3. 攝影機跟隨
         this.cameraDirector.setupFollow(player);
 
-        // 4. Wave Start
+        // 4. 開始第一波
         this.waveManager.startWave(1);
 
-        // 5. FX
-        // Note: cameraDirector.triggerFlash is not defined.
-        // this.cameraDirector.triggerFlash(1000);
+        // 5. 標記遊戲活躍
+        this.isGameActive = true;
+
+        // [VISUAL] 開場特效
+        this.triggerGlitch(0.5, 500);
     }
 
     update(time: number, delta: number) {

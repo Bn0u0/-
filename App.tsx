@@ -62,6 +62,16 @@ const App: React.FC = () => {
                         mode: 'SINGLE',
                         hero: newState.selectedHeroId || 'Vanguard'
                     });
+
+                    // [FIX] 雙重信號發射，確保 MainScene 收到 (Brain Strategy)
+                    // 第二次：延遲 300ms (給予 Canvas 渲染緩衝)
+                    setTimeout(() => {
+                        console.log("⚡ [App] Re-transmitting Start Signal...");
+                        EventBus.emit('START_MATCH', {
+                            mode: 'SINGLE',
+                            hero: newState.selectedHeroId || 'Vanguard',
+                        });
+                    }, 300);
                 }, 100);
 
             } else if (newState.currentScreen === 'HIDEOUT' || newState.currentScreen === 'ARSENAL') {
@@ -275,9 +285,8 @@ const App: React.FC = () => {
                 {appState === 'COMBAT' && (
                     <>
                         <GameOverlay />
-                        <div className="absolute inset-0 z-50 pointer-events-none data-[joystick]:pointer-events-auto">
-                            {/* Joystick Layer - needs to be high z-index but allow clicks through to GameOverlay if needed? */}
-                            {/* Actually Joystick is standard HTML over canvas. */}
+                        <div className="absolute inset-0 z-50 pointer-events-none">
+                            {/* Joystick Layer - Child has pointer-events-auto */}
                             <VirtualJoystick
                                 onMove={(x, y) => EventBus.emit('JOYSTICK_MOVE', { x, y })}
                                 onAim={(x, y, firing) => { /* Auto-aim handling */ }}

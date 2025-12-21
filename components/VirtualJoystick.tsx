@@ -9,8 +9,9 @@ interface VirtualJoystickProps {
 export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkill }) => {
     // Dynamic Joystick State
     const [isVisible, setIsVisible] = useState(false);
-    const [origin, setOrigin] = useState({ x: 0, y: 0 }); // Where touch started
-    const [current, setCurrent] = useState({ x: 0, y: 0 }); // Current touch pos
+    const originRef = useRef({ x: 0, y: 0 }); // [FIX] Use Ref for synchronous access
+    const [visualOrigin, setVisualOrigin] = useState({ x: 0, y: 0 }); // For Render only
+    const [visualCurrent, setVisualCurrent] = useState({ x: 0, y: 0 }); // For Render only
 
     // Siege Mode State
     const [isSiege, setIsSiege] = useState(false);
@@ -24,14 +25,15 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
 
     // Unified Pointer Handlers (Mouse + Touch)
     const handlePointerDown = (e: React.PointerEvent) => {
-        // Prevent default only if needed, but pointer-events-auto handles most
         const clientX = e.clientX;
         const clientY = e.clientY;
 
         e.currentTarget.setPointerCapture(e.pointerId);
 
-        setOrigin({ x: clientX, y: clientY });
-        setCurrent({ x: clientX, y: clientY });
+        originRef.current = { x: clientX, y: clientY };
+        setVisualOrigin({ x: clientX, y: clientY });
+        setVisualCurrent({ x: clientX, y: clientY });
+
         setIsVisible(true);
         setIsSiege(false); // Reset
         onMove(0, 0);
@@ -46,8 +48,12 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
         const clientX = e.clientX;
         const clientY = e.clientY;
 
-        let dx = clientX - origin.x;
-        let dy = clientY - origin.y;
+        // Use Ref for calculation to ensure freshness
+        const originX = originRef.current.x;
+        const originY = originRef.current.y;
+
+        let dx = clientX - originX;
+        let dy = clientY - originY;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist > maxMagRef.current) maxMagRef.current = dist;
@@ -59,7 +65,6 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
         if (force > 0.9) {
             if (!isSiege) {
                 setIsSiege(true);
-                // Haptic Feedback (Pulse)
                 if (navigator.vibrate) navigator.vibrate(30);
             }
         } else {
@@ -68,11 +73,14 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
 
         if (dist > RADIUS) {
             const ratio = RADIUS / dist;
-            dx *= ratio;
+            dx *= ratio; // Clamp Vector
             dy *= ratio;
         }
 
-        setCurrent({ x: origin.x + dx, y: origin.y + dy });
+        // Update Visuals
+        setVisualCurrent({ x: originX + dx, y: originY + dy });
+
+        // Emit Normalized Vector
         onMove(dx / RADIUS, dy / RADIUS);
     };
 
@@ -80,7 +88,10 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
         setIsVisible(false);
         setIsSiege(false);
         onMove(0, 0);
-        e.currentTarget.releasePointerCapture(e.pointerId);
+
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+        }
 
         // Flick Check
         const duration = Date.now() - startTimeRef.current;
@@ -92,6 +103,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
     return (
         <div
             className="absolute inset-0 z-[9999] touch-none pointer-events-auto"
+            style={{ touchAction: 'none' }} // [FIX] Force no-scroll
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -103,8 +115,8 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
                     className="pointer-events-none"
                     style={{
                         position: 'absolute',
-                        left: origin.x,
-                        top: origin.y,
+                        left: visualOrigin.x,
+                        top: visualOrigin.y,
                         width: '0px', height: '0px',
                         overflow: 'visible'
                     }}
@@ -123,8 +135,8 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
                     {/* Stick - Dynamic Color */}
                     <div style={{
                         position: 'absolute',
-                        top: current.y - origin.y - 25,
-                        left: current.x - origin.x - 25,
+                        top: visualCurrent.y - visualOrigin.y - 25,
+                        left: visualCurrent.x - visualOrigin.x - 25,
                         width: 50, height: 50,
                         borderRadius: '50%',
                         background: isSiege ? 'rgba(0, 255, 255, 0.8)' : 'rgba(255, 0, 85, 0.8)',
@@ -137,8 +149,9 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
 
             {/* Visual Hint for New Users */}
             {!isVisible && (
-                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-white/20 text-sm tracking-widest animate-pulse font-mono pointer-events-none">
-                    TOUCH ANYWHERE TO MOVE
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-white/20 text-sm tracking-widest animate-pulse font-mono pointer-events-none text-center">
+                    TOUCH ANYWHERE TO MOVE<br />
+                    <span className="text-xs opacity-50">(WASD ENABLED)</span>
                 </div>
             )}
         </div>

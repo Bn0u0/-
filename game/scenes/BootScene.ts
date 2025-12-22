@@ -89,8 +89,12 @@ export class BootScene extends Phaser.Scene {
             loop: true
         });
 
-        // 6. Input to Skip
+        // 6. Input to Skip (and Unlock Audio)
         this.input.on('pointerdown', () => {
+            const soundManager = this.sound as Phaser.Sound.WebAudioSoundManager;
+            if (soundManager.context && soundManager.context.state === 'suspended') {
+                soundManager.context.resume();
+            }
             this.completeBoot();
         });
     }
@@ -136,9 +140,12 @@ export class BootScene extends Phaser.Scene {
         // EventBus.emit('PLAY_SFX', 'KEYBOARD_CLACK');
     }
 
+    private isBootComplete: boolean = false;
+
     private completeBoot() {
         // Prevent double calling
-        if (this.scene.isActive('MainScene')) return; // Or whatever next scene is
+        if (this.isBootComplete || this.scene.isActive('MainScene')) return;
+        this.isBootComplete = true;
 
         // CRT Turn Off Effect
         this.cameras.main.pan(this.scale.width / 2, this.scale.height / 2, 200, 'Power2');

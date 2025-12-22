@@ -169,7 +169,7 @@ class PersistenceService {
             .from('profiles')
             .select('*')
             .eq('id', user.data.user.id)
-            .single();
+            .maybeSingle(); // [FIX] Use maybeSingle to prevent 406 error for new users
 
         if (data) {
             console.log("☁️ [Cloud] Profile Synced Down");

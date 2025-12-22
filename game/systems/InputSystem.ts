@@ -130,73 +130,20 @@ export class InputSystem {
 
         // 5. Apply Movement Rule
         if (force > 0.1) {
+            // [V5 SINGLE HANDED] ALWAYS AUTO
+            // Move towards input, Face towards move direction
+
+            // Siege Mode = Speed Boost (or just specific weapon behavior)
+            const speedMult = isSiege ? 1.1 : 1.0;
+
             body.setDrag(600);
+            body.setAcceleration(moveX * baseSpeed * speedMult, moveY * baseSpeed * speedMult);
 
-            // [LOGIC CORE]
-            switch (controlType) {
-                case 'AUTO':
-                    // [🟢] AUTO: Normal Movement, Siege = Boost
-                    // Logic: Move towards input
-                    {
-                        const speedMult = isSiege ? 1.1 : 1.0;
-                        body.setAcceleration(moveX * baseSpeed * speedMult, moveY * baseSpeed * speedMult);
-
-                        // Rotation: Face Move Direction
-                        const targetRotation = inputVector.angle() + Math.PI / 2;
-                        player.setRotation(Phaser.Math.Angle.RotateTo(player.rotation, targetRotation, 0.15));
-                    }
-                    break;
-
-                case 'HYBRID':
-                    // [🟡] HYBRID: Kite Logic
-                    if (isSiege) {
-                        // SIEGE: Moonwalk (Reverse Move, Forward Aim)
-                        // Velocity = Opposite of Input (-0.5 Speed)
-                        const kiteSpeed = baseSpeed * 0.5;
-                        body.setAcceleration(-moveX * kiteSpeed, -moveY * kiteSpeed);
-
-                        // Rotation: Face INPUT (Not movement)
-                        // We want to shoot where we are aiming (Input), but walk backward.
-                        const targetRotation = inputVector.angle() + Math.PI / 2;
-                        player.setRotation(Phaser.Math.Angle.RotateTo(player.rotation, targetRotation, 0.25)); // Snappier aim
-                    } else {
-                        // COMFORT: Normal Move
-                        body.setAcceleration(moveX * baseSpeed, moveY * baseSpeed);
-                        const targetRotation = inputVector.angle() + Math.PI / 2;
-                        player.setRotation(Phaser.Math.Angle.RotateTo(player.rotation, targetRotation, 0.15));
-                    }
-                    break;
-
-                case 'MANUAL':
-                    // [🔴] MANUAL: Siege = Stop
-                    if (isSiege) {
-                        // SIEGE: Anchor Down
-                        body.setAcceleration(0, 0);
-                        body.setVelocity(0, 0); // Hard Stop
-
-                        // Rotation: Face Input
-                        const targetRotation = inputVector.angle() + Math.PI / 2;
-                        player.setRotation(Phaser.Math.Angle.RotateTo(player.rotation, targetRotation, 0.3)); // Fast aim
-                    } else {
-                        // COMFORT: Normal Move
-                        body.setAcceleration(moveX * baseSpeed, moveY * baseSpeed);
-                        const targetRotation = inputVector.angle() + Math.PI / 2;
-                        player.setRotation(Phaser.Math.Angle.RotateTo(player.rotation, targetRotation, 0.15));
-                    }
-                    break;
-
-                default:
-                    // Fallback
-                    body.setAcceleration(moveX * baseSpeed, moveY * baseSpeed);
-                    break;
-            }
+            // Rotation: Face Move Direction
+            const targetRotation = inputVector.angle() + Math.PI / 2;
+            player.setRotation(Phaser.Math.Angle.RotateTo(player.rotation, targetRotation, 0.15));
 
             player.isMoving = true;
-            // Hacky way to expose Siege state to Player/WeaponSystem? 
-            // Maybe emit event or set property?
-            // For now, Player probably just shoots. WeaponSystem needs to know if Siege to modify Projectiles?
-            // Yes: "Ripper stays", "Shotgun tight spread".
-            // We should set a flag on player.
             (player as any).isSiegeMode = isSiege;
 
         } else {
@@ -205,11 +152,7 @@ export class InputSystem {
             (player as any).isSiegeMode = false;
         }
 
-        // FLICK DETECTION REMOVED - User didn't prioritize it, keeping simple.
-        // Or keep existing legacy flick if needed? 
-        // User said "Input System Upgrade... switch(Weapon.controlType)".
-        // I will assume Flick is secondary or handled by default Dash call if I leave it.
-        // Actually, I'll check legacy flick below but the massive replace will cover it.
+        // FLICK DETECTION handled by React VirtualJoystick (UI Layer)
     }
 
     // Internal state for raw pointer tracking

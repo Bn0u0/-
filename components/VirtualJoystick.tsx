@@ -95,14 +95,15 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onSkil
 
         // Flick Check
         const duration = Date.now() - startTimeRef.current;
-        if (duration < 250 && maxMagRef.current > 30) {
+        // [V5 TUNING] Snappier Dash (Must be fast < 200ms, and significant movement > 40px)
+        if (duration < 200 && maxMagRef.current > 40) {
             onSkill('DASH');
         }
     };
 
     return (
         <div
-            className="absolute inset-0 z-[9999] touch-none pointer-events-auto"
+            className="absolute bottom-0 left-0 w-full h-[40%] z-[9999] touch-none pointer-events-auto"
             style={{ touchAction: 'none' }} // [FIX] Force no-scroll
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}

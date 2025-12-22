@@ -10,10 +10,18 @@ import { EventBus } from '../../services/EventBus';
 // import { cardSystem } from '../systems/CardSystem'; // [VOID]
 // import { WeaponInstance } from '../../types'; // [VOID]
 
+import { ClassMechanic } from '../mechanics/ClassMechanic';
+import { ScavengerLogic } from '../mechanics/ScavengerLogic';
+import { SkirmisherLogic } from '../mechanics/SkirmisherLogic';
+import { WeaverLogic } from '../mechanics/WeaverLogic';
+
 export class Player extends Phaser.GameObjects.Container {
     public id: string;
     public isLocal: boolean;
     declare public body: Phaser.Physics.Arcade.Body;
+
+    // Logic
+    public mechanic: ClassMechanic | null = null;
 
     // Class Config
     public classConfig: ClassConfig | null = null;
@@ -40,6 +48,7 @@ export class Player extends Phaser.GameObjects.Container {
     public classId: string = 'SCAVENGER'; // Default
     protected graphics: Phaser.GameObjects.Graphics;
     protected coreShape: Phaser.GameObjects.Graphics;
+    protected mechanicGraphics: Phaser.GameObjects.Graphics; // [NEW]
     private emitter: Phaser.GameObjects.Particles.ParticleEmitter;
     private shadow: Phaser.GameObjects.Ellipse;
     public z: number = 0;
@@ -78,7 +87,7 @@ export class Player extends Phaser.GameObjects.Container {
 
         // Shadow
         this.shadow = scene.add.ellipse(0, 0, 40, 15, 0x000000, 0.4);
-        this.shadow.setDepth(5);
+        this.shadow.setDepth(-1); // [FIX] Behind Character
         this.add(this.shadow);
 
         // Particle Trail
@@ -99,8 +108,13 @@ export class Player extends Phaser.GameObjects.Container {
         this.add(this.graphics);
 
         // 2. Core Shape (Hitbox visualizer / shielding)
+        // 2. Core Shape (Hitbox visualizer / shielding)
         this.coreShape = scene.add.graphics();
         this.add(this.coreShape);
+
+        // 3. Mechanic Visuals (Overlay)
+        this.mechanicGraphics = scene.add.graphics();
+        this.add(this.mechanicGraphics);
 
         // Direction Arrow
         if (isLocal) {
@@ -125,15 +139,31 @@ export class Player extends Phaser.GameObjects.Container {
         this.classConfig = config;
         this.classId = classId;
 
-        // [Weapon 2.0] Default T0 Weapon Mapping
-        const T0_MAPPING: Record<string, string> = {
+        // Input Listener
+        // Note: Ideally in constructor, but configure is safe place for logic reset
+        this.scene.events.off('PLAYER_DASH'); // Clean up old
+        this.scene.events.on('PLAYER_DASH', (vector: { x: number, y: number }) => {
+            if (this.scene) { // Alive check
+                this.dash();
+            }
+        });
+
+        // [NEW] Recoil Listener
+        EventBus.off('PLAYER_RECOIL'); // Prevent dupes
+        EventBus.on('PLAYER_RECOIL', (data: { force: number, angle: number }) => {
+            if (this.scene && this.body) {
+                const body = this.body as Phaser.Physics.Arcade.Body;
+                // Apply force opposite to shooting angle
+                body.velocity.x -= Math.cos(data.angle) * data.force;
+                body.velocity.y -= Math.sin(data.angle) * data.force;
+            }
+        });
+
+        // [Weapon 2.0] Trinity Weapon Mapping
+        const T0_MAPPING: Partial<Record<string, string>> = {
             'SCAVENGER': 'weapon_crowbar_t0',
-            'RANGER': 'weapon_pistol_t0',
-            'WEAVER': 'weapon_drone_t0',
-            // T2 Fallbacks
-            'RONIN': 'weapon_crowbar_t0', 'SPECTRE': 'weapon_crowbar_t0', 'RAIDER': 'weapon_crowbar_t0',
-            'GUNNER': 'weapon_pistol_t0', 'HUNTER': 'weapon_pistol_t0', 'TRAPPER': 'weapon_pistol_t0',
-            'ARCHITECT': 'weapon_drone_t0', 'WITCH': 'weapon_drone_t0', 'MEDIC': 'weapon_drone_t0'
+            'SKIRMISHER': 'weapon_pistol_t0',
+            'WEAVER': 'weapon_drone_t0'
         };
 
         const defId = T0_MAPPING[classId] || 'weapon_pistol_t0';
@@ -151,6 +181,16 @@ export class Player extends Phaser.GameObjects.Container {
         this.stats.speed = config.stats.speed;
 
         // Redraw with Class Color
+        // Initialize Mechanic
+        if (this.mechanic) this.mechanic.destroy();
+
+        switch (classId) {
+            case 'SCAVENGER': this.mechanic = new ScavengerLogic(this); break;
+            case 'SKIRMISHER': this.mechanic = new SkirmisherLogic(this); break;
+            case 'WEAVER': this.mechanic = new WeaverLogic(this); break;
+            default: this.mechanic = new ScavengerLogic(this); break;
+        }
+
         this.drawGuardian(config.stats.markColor);
     }
 
@@ -211,61 +251,62 @@ export class Player extends Phaser.GameObjects.Container {
         // Bobblehead (Head > Body). Cute but menacing.
 
         switch (classId) {
-            case 'IMPACT':
-            case 'RAIDER':
-                // "THE TANK" - Chunky Square Robot
-                // Legs (Tiny)
+            case 'SCAVENGER':
+                // "THE SURVIVOR" - Chunky, Armored
+                // Body
                 g.fillStyle(dark, 1);
-                g.fillRoundedRect(-15, 10, 10, 15, 2);
-                g.fillRoundedRect(5, 10, 10, 15, 2);
-                g.strokeRoundedRect(-15, 10, 10, 15, 2);
-                g.strokeRoundedRect(5, 10, 10, 15, 2);
-
-                // Body (Small)
-                g.fillStyle(dark, 1);
-                g.fillRect(-10, -5, 20, 20);
-                g.strokeRect(-10, -5, 20, 20);
-
-                // Head (Huge)
+                g.fillRoundedRect(-12, -5, 24, 25, 4);
+                g.strokeRoundedRect(-12, -5, 24, 25, 4);
+                // Head (Helmet)
                 g.fillStyle(primary, 1);
-                g.fillRoundedRect(-20, -35, 40, 30, 8);
-                g.strokeRoundedRect(-20, -35, 40, 30, 8);
-
-                // Face (One Eye)
-                g.fillStyle(0xffffff, 1);
-                g.fillCircle(0, -20, 8);
+                g.fillRoundedRect(-15, -20, 30, 20, 6);
+                g.strokeRoundedRect(-15, -20, 30, 20, 6);
+                // Visor
+                g.fillStyle(0x00FFFF, 0.8);
+                g.fillRect(-10, -15, 20, 6);
                 break;
 
-            case 'BLADE':
-            case 'RONIN':
-                // "THE SPEEDSTER" - Ninja Hood
-                // Cape/Body
+            case 'SKIRMISHER':
+                // "THE DUELIST" - Sleek, Hooded
+                // Cape/Body (Triangle)
                 g.fillStyle(dark, 1);
                 g.beginPath();
-                g.moveTo(0, -10); g.lineTo(15, 15); g.lineTo(-15, 15);
+                g.moveTo(0, -10); g.lineTo(15, 20); g.lineTo(-15, 20);
                 g.closePath();
                 g.fillPath();
                 g.strokePath();
 
                 // Head (Hood)
                 g.fillStyle(primary, 1);
-                g.fillCircle(0, -15, 16);
-                g.strokeCircle(0, -15, 16);
-
-                // Eyes (Determined)
+                g.fillCircle(0, -12, 14);
+                g.strokeCircle(0, -12, 14);
+                // Eye (Mono)
                 g.fillStyle(white, 1);
-                g.fillRect(-10, -18, 8, 4);
-                g.fillRect(2, -18, 8, 4);
+                g.fillCircle(4, -12, 3);
+                break;
+
+            case 'WEAVER':
+                // "THE ENGINEER" - Tech, Floating Bits
+                // Body (Orb-like)
+                g.fillStyle(dark, 1);
+                g.fillCircle(0, 5, 12);
+                g.strokeCircle(0, 5, 12);
+
+                // Head (Floating)
+                g.fillStyle(primary, 1);
+                g.fillCircle(0, -15, 10);
+                g.strokeCircle(0, -15, 10);
+
+                // Antenna
+                g.lineStyle(2, primary, 1);
+                g.lineBetween(0, -25, 0, -32);
+                g.fillCircle(0, -34, 2);
                 break;
 
             default:
-                // Fallback Cute Blob
+                // Fallback
                 g.fillStyle(primary, 1);
-                g.fillCircle(0, -10, 20); // Big Head
-                g.strokeCircle(0, -10, 20);
-                g.fillStyle(dark, 1);
-                g.fillCircle(0, 15, 10); // Small Body
-                g.strokeCircle(0, 15, 10);
+                g.fillCircle(0, 0, 15);
                 break;
         }
     }
@@ -396,6 +437,13 @@ export class Player extends Phaser.GameObjects.Container {
         }
 
         this.updateMaxSpeed();
+
+        // Mechanic Update
+        if (this.mechanic) {
+            this.mechanic.update(dt);
+            this.mechanicGraphics.clear();
+            this.mechanic.draw(this.mechanicGraphics);
+        }
     }
 
     private updateMaxSpeed() {
@@ -422,6 +470,8 @@ export class Player extends Phaser.GameObjects.Container {
 
         this.zVelocity = 12;
         this.scene.cameras.main.shake(100, 0.002);
+
+        if (this.mechanic) this.mechanic.onDash();
     }
 
     // Auto-Fire System (WeaponSystem Hook)
@@ -518,6 +568,26 @@ export class Player extends Phaser.GameObjects.Container {
         return closest;
     }
 
+    public takeDamage(amount: number) {
+        if (this.isInvulnerable || this.shielded) return; // Legacy shield check?
+
+        // Mechanic Hook
+        if (this.mechanic) {
+            amount = this.mechanic.onHit(amount);
+        }
+
+        if (amount > 0) {
+            this.stats.hp -= amount;
+            // Standard Take Damage Visuals
+            this.scene.cameras.main.shake(50, 0.001);
+            EventBus.emit('SHOW_FLOATING_TEXT', { x: this.x, y: this.y, text: `-${Math.floor(amount)}`, color: '#FF0000' });
+
+            if (this.stats.hp <= 0) {
+                // Die Logic (Handled in Scene normally)
+            }
+        }
+    }
+
     public getDamage(): { dmg: number, isCrit: boolean } {
         const isCrit = Math.random() < (this.stats.crit / 100);
         let dmg = this.stats.atk;
@@ -525,11 +595,12 @@ export class Player extends Phaser.GameObjects.Container {
         return { dmg, isCrit };
     }
 
-    public triggerSkill1() { /* TODO: Class Spec Skill */ }
-    public triggerSkill2() { /* TODO: Class Spec Skill */ }
+    // Zero-Button System: Active skills removed.
+    // Logic handled in update() or by InputSystem flick detection.
 
     destroy(fromScene?: boolean) {
         this.emitter.destroy();
+        EventBus.off('PLAYER_RECOIL');
         super.destroy(fromScene);
     }
 

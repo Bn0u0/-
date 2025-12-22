@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { MainScene } from '../scenes/MainScene';
 import { COLORS } from '../../constants';
 import { MapGenerator, TILE_FLOOR, TILE_WALL, TILE_VOID } from '../generators/MapGenerator';
+import { GAME_LAYER } from '../constants/Depth';
 
 // 2.5D Tiling System
 export enum TileType {
@@ -80,12 +81,14 @@ export class TerrainManager {
         this.scene.add.existing(g);
 
         // -- NEON GLITCH PALETTE --
-        const COL_GROUND = 0x1a0b2e; // Deep Void Purple
-        const COL_HEX = 0x432c7a;    // Neon Violet Grid
+        // -- NEON GLITCH PALETTE [REVISED] --
+        const COL_GROUND = 0x111111; // Dark Asphalt (Not Purple)
+        const COL_HEX = 0x00FFCC;    // Cyber Cyan Grid (High Contrast)
         const COL_WALL_SIDE = 0x0f0518; // Obsidian
-        const COL_WALL_TOP = 0x2d1b4e;  // Dark Crystal
+        const COL_WALL_TOP = 0x222222;  // Dark Grey
         const COL_GLOW = 0x00ff9d;      // Cyber Green Glow
-        const COL_DECOR = 0x5d2c7a;     // Debris Color
+        const COL_DECOR = 0x555555;     // Industrial Grey
+
 
         if (type === TileType.GROUND) {
             // 1. Base Ground
@@ -99,9 +102,9 @@ export class TerrainManager {
             const r = this.tileSize / 2.5;
             this.drawHex(g, cx, cy, r);
 
-            // 3. TASK_VF_003: Decoration Scatter (Debris)
-            if (Math.random() < 0.25) { // 25% chance
-                const shards = Math.floor(Math.random() * 3) + 1;
+            // 3. TASK_VF_003: Decoration Scatter (Debris) - [FIX] Reduced Density
+            if (Math.random() < 0.05) { // Reduced to 5%
+                const shards = Math.floor(Math.random() * 2) + 1;
                 g.fillStyle(COL_DECOR, 0.4);
                 for (let i = 0; i < shards; i++) {
                     const sx = worldX + Math.random() * this.tileSize;
@@ -111,13 +114,13 @@ export class TerrainManager {
                 }
             }
 
-            // 4. Glitch Dots (Rare)
-            if (Math.random() < 0.05) {
+            // 4. Glitch Dots (Rare) - [FIX] Reduced Density
+            if (Math.random() < 0.01) { // Reduced to 1%
                 g.fillStyle(COL_GLOW, 0.6);
                 g.fillRect(worldX + Math.random() * 60, worldY + Math.random() * 60, 4, 4);
             }
 
-            g.setDepth(-10);
+            g.setDepth(GAME_LAYER.GROUND);
         } else if (type === TileType.WALL) {
             // "Digital Monolith" Style
 
@@ -178,7 +181,7 @@ export class TerrainManager {
     private scatterClutter() {
         const textures = ['clutter_can', 'clutter_wire', 'clutter_tire'];
         this.tiles.forEach(tile => {
-            if (tile.type === TileType.GROUND && Math.random() < 0.15) { // 15% Chance
+            if (Math.random() < 0.005) { // [FIX] Reduced to 0.5% (Very Rare)
                 const tex = textures[Math.floor(Math.random() * textures.length)];
 
                 // Random offset within tile
@@ -188,7 +191,7 @@ export class TerrainManager {
                 const clutter = this.scene.add.image(x, y, tex);
                 clutter.setRotation(Math.random() * Math.PI * 2);
                 clutter.setPipeline('Light2D'); // React to lights
-                clutter.setDepth(y); // Y-Sort
+                clutter.setDepth(GAME_LAYER.CLUTTER); // [FIX] Depth 1 ensure it is visually ON FLOOR
 
                 this.clutterGroup.add(clutter);
             }

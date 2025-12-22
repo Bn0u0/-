@@ -168,6 +168,9 @@ export class LootService {
             Phaser.Math.Between(-50, 50)
         );
 
+        // [FIX] Depth Sorting
+        loot.setDepth(y); // Consistent with units
+
         // Pop
         this.scene.tweens.add({ targets: loot, scale: { from: 0, to: 0.8 }, duration: 400, ease: 'Back.out' });
 

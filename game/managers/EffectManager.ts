@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { EventBus } from '../../services/EventBus';
 import confetti from 'canvas-confetti';
+import { GAME_LAYER } from '../constants/Depth';
 
 export class EffectManager {
     private scene: Phaser.Scene;
@@ -41,7 +42,7 @@ export class EffectManager {
             stroke: '#000000',
             strokeThickness: isCrit ? 8 : 6,
             fontFamily: '"Courier New", Courier, monospace'
-        }).setOrigin(0.5).setDepth(2000);
+        }).setOrigin(0.5).setDepth(GAME_LAYER.UI_TEXT); // [FIX] Max Depth
 
         this.scene.tweens.add({
             targets: txt,
@@ -57,7 +58,7 @@ export class EffectManager {
     private showDirectorToast(data: { msg: string }) {
         const txt = this.scene.add.text(this.scene.cameras.main.width / 2, 100, `WARNING: ${data.msg}`, {
             fontSize: '32px', color: '#ff00ff', stroke: '#000', strokeThickness: 4, fontStyle: 'bold'
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(2000);
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(GAME_LAYER.UI_TEXT);
 
         this.scene.tweens.add({
             targets: txt,
@@ -85,7 +86,7 @@ export class EffectManager {
         if (msg) {
             const txt = this.scene.add.text(this.scene.cameras.main.width / 2, 200, msg, {
                 fontSize: '24px', color: color, stroke: '#000', strokeThickness: 4, fontStyle: 'bold'
-            }).setOrigin(0.5).setScrollFactor(0).setDepth(2000);
+            }).setOrigin(0.5).setScrollFactor(0).setDepth(GAME_LAYER.UI_TEXT);
 
             this.scene.tweens.add({
                 targets: txt, alpha: 0, duration: 5000, onComplete: () => txt.destroy()
@@ -96,7 +97,7 @@ export class EffectManager {
     private showLootText(data: { x: number, y: number, text: string, color: string }) {
         const txt = this.scene.add.text(data.x, data.y, data.text, {
             fontSize: '16px', color: data.color, stroke: '#000', strokeThickness: 2
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setDepth(GAME_LAYER.UI_TEXT);
 
         this.scene.tweens.add({
             targets: txt, y: data.y - 100, alpha: 0, duration: 1000, onComplete: () => txt.destroy()
@@ -124,7 +125,7 @@ export class EffectManager {
     public showPanicOverlay() {
         // Create a persistent or temporary overlay for boss encounters
         const overlay = this.scene.add.rectangle(0, 0, this.scene.cameras.main.width, this.scene.cameras.main.height, 0xFF0000, 0);
-        overlay.setScrollFactor(0).setDepth(1999);
+        overlay.setScrollFactor(0).setDepth(GAME_LAYER.OVERLAY_PANIC);
 
         this.scene.tweens.add({
             targets: overlay,
@@ -137,7 +138,7 @@ export class EffectManager {
 
         const txt = this.scene.add.text(this.scene.cameras.main.width / 2, 200, "WARNING: SECTOR LOCKED\nKILL THE GUARDIAN", {
             fontSize: '40px', color: '#FF0000', fontStyle: 'bold', align: 'center', stroke: '#000', strokeThickness: 6
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(2001);
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(GAME_LAYER.OVERLAY_PANIC + 1);
 
         this.scene.tweens.add({ targets: txt, alpha: 0, duration: 5000, delay: 1000, onComplete: () => txt.destroy() });
     }

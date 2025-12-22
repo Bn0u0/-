@@ -1,23 +1,29 @@
 import { supabase } from './SupabaseClient';
-import { ItemInstance } from '../types';
+import { ItemInstance, LicenseRank, PlayerClassID } from '../types'; // Import new types
 
 export interface UserProfile {
     username: string;
-    level: number;
-    xp: number; // Added to sync with GameStats
+    level: number; // [LEGACY] Keep for Leaderboard? Or migrate to Toolkit Level? 
+    // Let's keep 'level' as 'Toolkit Level' for now to save refactor time.
+    toolkitLevel: number; // [NEW] Explicit name
+    xp: number;
     credits: number;
-    inventory: ItemInstance[]; // Updated Type
-    loadout: any;     // 你的 Loadout 定義
+    inventory: ItemInstance[];
+    loadout: any;
     hasPlayedOnce: boolean;
     stats: {
         totalKills: number;
         runsCompleted: number;
     };
+    // [NEW] Phase 4: Licenses & Blueprints
+    licenses: Record<string, LicenseRank>; // e.g. { SCAVENGER: 'D' }
+    blueprints: string[]; // e.g. ['bp_skirmisher']
 }
 
 const DEFAULT_PROFILE: UserProfile = {
     username: 'Guest',
     level: 1,
+    toolkitLevel: 1,
     xp: 0,
     credits: 0,
     inventory: [],
@@ -36,7 +42,17 @@ const DEFAULT_PROFILE: UserProfile = {
         feet: null
     },
     hasPlayedOnce: false,
-    stats: { totalKills: 0, runsCompleted: 0 }
+    stats: { totalKills: 0, runsCompleted: 0 },
+    // [NEW] Defaults
+    licenses: {
+        'SCAVENGER': 'D', // Default Class
+        'SKIRMISHER': 'D', // Temporary unlock for testing? Or locked? Let's leave unlocked for now or 'D' means unlocked?
+        // Actually, if Blueprint not owned, License doesn't matter.
+        // Wait, User asked for "Unlocks".
+        // Let's say: D = Unlocked. Unlisted = Locked.
+        'WEAVER': 'D'
+    },
+    blueprints: ['bp_scavenger', 'bp_skirmisher', 'bp_weaver'] // [DEBUG] Give all for beta testing
 };
 
 // [CRITICAL] ALIGN WITH InventoryService
@@ -60,12 +76,21 @@ class PersistenceService {
             const { data: { session } } = await supabase.auth.getSession();
 
             if (!session) {
-                // 如果沒登入，就匿名登入 (降低玩家門檻)
+                // 如果沒登入，嘗試匿名登入 (降低玩家門檻)
                 console.log("☁️ [Cloud] Signing in anonymously...");
-                const { error } = await supabase.auth.signInAnonymously();
-                if (error) {
-                    console.warn("Cloud Auth Warning (Offline Mode):", error.message);
-                    return; // Fail gracefully, use local profile
+                try {
+                    const { error } = await supabase.auth.signInAnonymously();
+                    if (error) {
+                        // Suppress 422 error for Disabled Anonymous Auth (Offline Mode)
+                        if (error.status === 422 || error.message.includes('Anonymous sign-ins are disabled')) {
+                            console.log("⚠️ [Cloud] Anonymous Auth disabled. Running in OFFLINE GUEST MODE.");
+                            return;
+                        }
+                        console.warn("Cloud Auth Warning:", error.message);
+                        return;
+                    }
+                } catch (innerError) {
+                    console.warn("Cloud Auth Ex:", innerError);
                 }
             }
 
@@ -140,12 +165,16 @@ class PersistenceService {
             this.profile = {
                 ...this.profile,
                 level: data.level || this.profile.level,
+                toolkitLevel: data.toolkitLevel || data.level || 1, // [MIGRATE] Use level as fallback
                 credits: data.credits,
                 // inventory: data.inventory, // Keep local for now? Or overwrite? 
                 // Let's trust cloud for now
                 inventory: data.inventory || [],
                 loadout: data.loadout || this.profile.loadout,
-                stats: data.stats || this.profile.stats
+                stats: data.stats || this.profile.stats,
+                // [MIGRATE]
+                licenses: data.licenses || this.profile.licenses || { 'SCAVENGER': 'D' },
+                blueprints: data.blueprints || this.profile.blueprints || ['bp_scavenger']
             };
             if (data.username) this.profile.username = data.username;
 

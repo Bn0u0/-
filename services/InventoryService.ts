@@ -50,10 +50,7 @@ class InventoryService {
             // =========== [DEV MODE ACTIVE] ==========
             tutorialStep: 'COMPLETE', // Skip FTUE
             unlockedClasses: [
-                'SCAVENGER', 'RANGER', 'WEAVER',
-                'RONIN', 'SPECTRE', 'RAIDER',
-                'GUNNER', 'HUNTER', 'TRAPPER',
-                'ARCHITECT', 'WITCH', 'MEDIC'
+                'SCAVENGER', 'SKIRMISHER', 'WEAVER'
             ],
             trialClassId: null
         };

@@ -28,6 +28,82 @@ export class CombatManager {
             50, // Initial pool size
             200 // Max pool size
         );
+
+        // [NEW] Event Listeners for Strategy Interactions
+        EventBus.on('COMBAT_HIT_SCAN', this.handleHitScan, this);
+        EventBus.on('COMBAT_AREA_ATTACK', this.handleAreaAttack, this);
+    }
+
+    // [NEW] Hit Scan Logic
+    private handleHitScan(data: { x1: number, y1: number, x2: number, y2: number, damage: number, ownerId: string }) {
+        // Simple Line Intersection Check against all Enemies
+        // Note: This is O(N) where N is enemy count. Acceptable for now.
+        if (!this.scene['enemyGroup']) return; // Access unsafe?
+
+        const line = new Phaser.Geom.Line(data.x1, data.y1, data.x2, data.y2);
+        const enemies = (this.scene as any).enemyGroup.getChildren() as Enemy[];
+
+        enemies.forEach(enemy => {
+            if (!enemy.active) return;
+            const body = enemy.body as Phaser.Physics.Arcade.Body;
+            if (body) {
+                // Check if line intersects circle (Body is circle roughly)
+                // Or simplified: Shortest distance from center to line < radius
+                // Phaser Geom Intersects can do Line vs Rectangle (Body)
+                const rect = new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height);
+                if (Phaser.Geom.Intersects.LineToRectangle(line, rect)) {
+                    // HIT!
+                    this.applyDamage(enemy, data.damage, false);
+
+                    // VFX: Spark at intersection?
+                    // Simplify: Spark at center
+                    EventBus.emit('SHOW_FLOATING_TEXT', { x: enemy.x, y: enemy.y, text: "HIT", color: "#FF00FF" });
+                }
+            }
+        });
+    }
+
+    // [NEW] Area Attack Logic
+    private handleAreaAttack(data: { x: number, y: number, radius: number, angle: number, arc: number, damage: number, ownerId: string }) {
+        if (!this.scene['enemyGroup']) return;
+        const enemies = (this.scene as any).enemyGroup.getChildren() as Enemy[];
+
+        enemies.forEach(enemy => {
+            if (!enemy.active) return;
+
+            // 1. Distance Check
+            const dist = Phaser.Math.Distance.Between(data.x, data.y, enemy.x, enemy.y);
+            if (dist > data.radius) return;
+
+            // 2. Angle Check (if Cone)
+            if (data.arc < Math.PI * 2) {
+                const angleToEnemy = Phaser.Math.Angle.Between(data.x, data.y, enemy.x, enemy.y);
+                const angleDiff = Phaser.Math.Angle.Wrap(angleToEnemy - data.angle);
+                if (Math.abs(angleDiff) > data.arc / 2) return;
+            }
+
+            // HIT!
+            this.applyDamage(enemy, data.damage, true);
+        });
+    }
+
+    private applyDamage(enemy: Enemy, damage: number, isKnockback: boolean) {
+        if (damage <= 0) return;
+        const kill = enemy.takeDamage(damage);
+
+        EventBus.emit('SHOW_FLOATING_TEXT', {
+            x: enemy.x, y: enemy.y,
+            text: `${Math.floor(damage)}`,
+            color: kill ? '#FFAA00' : '#FFFFFF'
+        });
+
+        if (kill) this.scene.cameras.main.shake(50, 0.005);
+
+        if (isKnockback && !kill && enemy.body) {
+            // Simple push away from player? Or center of blast?
+            // Not enough info in args, assume push back slightly?
+            // Skip for now.
+        }
     }
 
     public spawnProjectile(x: number, y: number, angle: number, ownerId: string, damage: number) {

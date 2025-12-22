@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
+import { BootScene } from './scenes/BootScene';
+import { WorkbenchScene } from './scenes/WorkbenchScene';
 import { MainScene } from './scenes/MainScene';
 import { COLORS } from '../constants';
 
@@ -18,7 +20,7 @@ export const PhaserGame: React.FC = () => {
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
       parent: 'game-container', // Direct ID reference to the z-0 container
-      backgroundColor: COLORS.bg,
+      backgroundColor: 0x000000, // [FIX] Pure Black Void (Prevents confusion with Menu BG)
       width: '100%',
       height: '100%',
       scale: {
@@ -38,7 +40,7 @@ export const PhaserGame: React.FC = () => {
           debug: false,
         },
       },
-      scene: [MainScene],
+      scene: [BootScene, WorkbenchScene, MainScene], // [UPDATED] Boot -> Workbench -> Main
       input: {
         activePointers: 3, // Support Multitouch
       }

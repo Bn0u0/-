@@ -1,9 +1,5 @@
 // [REFACTORED] Tier 1 & Tier 2 Class Structure
-export type PlayerClassID =
-  | 'SCAVENGER' | 'RANGER' | 'WEAVER'
-  | 'RONIN' | 'SPECTRE' | 'RAIDER'
-  | 'GUNNER' | 'HUNTER' | 'TRAPPER'
-  | 'ARCHITECT' | 'WITCH' | 'MEDIC';
+export type PlayerClassID = 'SCAVENGER' | 'SKIRMISHER' | 'WEAVER';
 
 // ----------------------
 // 1. 詞條系統 (Affix System)
@@ -70,6 +66,7 @@ export interface ItemDef {
   // [NEW] 裝備需求
   requirements?: {
     minLevel?: number;
+    minLicense?: LicenseRank; // [NEW] License Restriction
   };
 
   icon?: string;
@@ -81,6 +78,8 @@ export interface ItemDef {
 // ----------------------
 // 3. 物品實體 (Dynamic Instance)
 // ----------------------
+export type LicenseRank = 'D' | 'C' | 'B' | 'A' | 'S'; // [NEW]
+
 export interface ItemInstance {
   uid: string;       // 唯一識別碼 (UUID)
   defId: string;     // 原始定義 ID

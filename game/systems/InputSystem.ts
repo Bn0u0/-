@@ -59,44 +59,43 @@ export class InputSystem {
     }
 
     private checkFlick() {
-        if (this.vectorHistory.length < 3) return;
+        // FLICK LOGIC: Detect "Pull and Release" or "Quick Swipe"
+        // VirtualJoystick emits 0,0 on release.
 
-        // Simple Flick: Did we go from 0 to MAX in very short time?
-        // Or did we release? 
-        // Virtual Joystick resets to 0,0 on release.
-        // If we were at high magnitude and suddenly went to 0 (Release)? -> Maybe Dash?
-        // ONE-THUMB DESIGN DECISION:
-        // Flick-to-Dash usually implies a quick swipe.
-        // Let's detect: High Velocity Input -> Release (0,0).
+        // 1. Check if we just released (Current is 0,0)
+        const current = this.moveVector;
+        if (current.x === 0 && current.y === 0) {
+            // 2. Check history (Did we have high velocity recently?)
+            if (this.vectorHistory.length > 0) {
+                const lastInput = this.vectorHistory[this.vectorHistory.length - 1];
+                const lastTime = lastInput.time;
+                const now = this.scene.time.now;
 
-        const latest = this.vectorHistory[this.vectorHistory.length - 1];
-        const prev = this.vectorHistory[0]; // Oldest in window
+                // Only if released VERY recently (within 100ms of last input)
+                if (now - lastTime < 100) {
+                    const magnitude = Math.sqrt(lastInput.x * lastInput.x + lastInput.y * lastInput.y);
 
-        // Note: This logic might need tuning. 
-        // Simpler approach: If 'JOYSTICK_MOVE' sends 0,0 (Release), check the LAST input magnitude.
-        // If last magnitude was > 0.8, treat as Flick/Dash?
-        // No, that's just unnecessary dashing when stopping.
+                    // Threshold: Must be a deliberate strong pull (> 0.6)
+                    if (magnitude > 0.6) {
+                        // TRIGGER DASH
+                        // We need access to player to dash? 
+                        // Or emit event? Player listens to InputSystem?
+                        // Currently processInput passes player. 
+                        // But checkFlick is called from setVirtualAxis (event).
+                        // We can't access player derived from processInput easily here.
 
-        // Let's rely on explicit FLICK gesture?
-        // Actually, the previous implementation had a decent "Time/Distance" check.
-        // But that was based on Mouse Pointer. Now we rely on VirtualJoystick.tsx emitting events.
-        // VirtualJoystick.tsx handles the "Touch" abstraction.
+                        // Solution: Emit Event
+                        this.scene.events.emit('PLAYER_DASH', {
+                            x: lastInput.x,
+                            y: lastInput.y
+                        });
 
-        // Let's trust the VirtualJoystick to drive movement, and if the user wants to DASH,
-        // maybe we interpret a "Double Tap" or "Quick Swipe"?
-        // Wait, the Requirement said: "If sliding speed > 400px/s -> Flick".
-
-        // But valid "Input" comes as normalized -1 to 1.
-        // We don't verify pixel speed here easily without screen coords.
-        // Let's implement FLICK in `VirtualJoystick.tsx`? 
-        // No, keeping logic in System is better.
-        // Check `App.tsx` / `VirtualJoystick` integration.
-        // VirtualJoystick emits raw normalized vector.
-
-        // ALTERNATIVE: Player class handles Dash based on "JustDown" + Velocity?
-        // Let's stay simple:
-        // Use the default dash mechanic for now (Spacebar was removed).
-        // Let's add a `tryFlick` method called by `processInput` if conditions met.
+                        // Clear history to prevent double trigger
+                        this.vectorHistory = [];
+                    }
+                }
+            }
+        }
     }
 
     // Called every frame by MainScene

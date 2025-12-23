@@ -2,7 +2,8 @@
 html,
 body {
     width: 100%;
-    height: 100%;
+    height: 100dvh;
+    /* Dynamic Viewport Height (Best for Mobile) */
     margin: 0;
     padding: 0;
     overflow: hidden;
@@ -12,6 +13,13 @@ body {
     /* 防止加載時閃白 */
     touch-action: none;
     /* 禁止手機預設的雙擊縮放 */
+}
+
+:root {
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
 }
 
 #root {
@@ -80,7 +88,9 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background-image: url('/assets/ui/noise.png');
+    /* background-image: url('/assets/ui/noise.png'); */
+    background-color: rgba(255, 255, 255, 0.05);
+    /* Fallback noise color */
     /* 確保你有這張圖，沒有的話這行會無效但不報錯 */
     opacity: 0.05;
     pointer-events: none;

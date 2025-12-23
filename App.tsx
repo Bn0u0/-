@@ -24,6 +24,7 @@ const App: React.FC = () => {
 
         // 2. Subscribe to State Changes
         const unsubscribe = sessionService.subscribe((newState) => {
+            console.log("🔄 [App] State Update:", newState.appState);
             setSession({ ...newState });
         });
 
@@ -47,27 +48,45 @@ const App: React.FC = () => {
     // managing Game Logic bypassing App.tsx (Correct Pattern for Input).
 
     return (
-        /* [V4] The Universal Mobile Frame (Desktop Center / Mobile Full) */
-        <div className="w-full h-screen bg-black flex justify-center items-center overflow-hidden">
+        // [V4] The Universal Mobile Frame (Desktop Center / Mobile Full)
+        // [FIX] Changed bg-black to bg-transparent to allow Phaser (z-0) to show through.
+        // If we want "Letterboxing" for desktop, we need a different strategy (e.g. side bars).
+        // For now, let's reveal the game.
+        <div className="w-full h-screen bg-transparent flex justify-center items-center overflow-hidden">
 
-            /* The Virtual Device */
-            <div className="relative w-full h-full max-w-[430px] bg-[#0e0d16] shadow-2xl overflow-hidden">
+            {/* The Virtual Device */}
+            {/* [FIX] Removed bg-[#0e0d16] so we can see the game behind the UI */}
+            <div className="relative w-full h-full max-w-[430px] bg-transparent shadow-2xl overflow-hidden pointer-events-none">
+                {/* Added pointer-events-none to container so clicks pass to game, but children need pointer-events-auto */}
 
                 {/* Background Effects */}
+                {/* Re-enabled pointer-events-auto for children in CSS or inline if needed, but App.css handles .app-container children */}
                 <div className="scanlines" />
                 <div className={`noise-overlay ${appState === 'BOOT' ? 'opacity-10' : 'opacity-5'} `} />
 
                 {/* State: MAIN_MENU / HIDEOUT (Unified) */}
-                {(appState === 'MAIN_MENU' || appState === 'HIDEOUT') && (
-                    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: HTML_LAYER.HUD }}>
-                        {session.workbenchView === 'CRATE' && (
-                            <ArsenalOverlay
-                                currentWeapon={session.profile.loadout.mainWeapon}
-                                inventory={session.profile.inventory}
-                            />
-                        )}
-                    </div>
-                )}
+                {
+                    (appState === 'MAIN_MENU' || appState === 'HIDEOUT') && (
+                        <div className="absolute inset-0 pointer-events-none" style={{ zIndex: HTML_LAYER.HUD }}>
+                            {session.workbenchView === 'CRATE' && (
+                                <ArsenalOverlay
+                                    currentWeapon={session.profile.loadout.mainWeapon}
+                                    inventory={session.profile.inventory}
+                                />
+                            )}
+                        </div>
+                    )
+                }
+
+                {/* State: BOOT SCREEN (React Overlay) */}
+                {
+                    appState === 'BOOT' && (
+                        <BootScreen onStart={() => {
+                            // On Click: Skip Phaser Boot Sequence force enter
+                            EventBus.emit('BOOT_COMPLETE');
+                        }} />
+                    )
+                }
 
                 {/* State: COMBAT & BOOT & MAIN_MENU (Phaser Persistent) */}
                 <div
@@ -98,30 +117,34 @@ const App: React.FC = () => {
                 </div>
 
                 {/* State: TUTORIAL DEBRIEF */}
-                {appState === 'TUTORIAL_DEBRIEF' && (
-                    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in p-8 text-center">
-                        <h2 className="text-4xl md:text-6xl font-black text-[#00FFFF] mb-6">SIGNAL ESTABLISHED</h2>
-                        <p className="text-gray-300 max-w-md mb-12 leading-relaxed tracking-wider">
-                            戰鬥數據已上傳。<br />
-                            指揮官權限已解鎖。<br />
-                            歡迎來到 SYNAPSE 神經網絡。
-                        </p>
-                        <button
-                            className="px-8 py-4 bg-[#00FFFF] text-black font-black tracking-widest text-xl uppercase skew-x-[-10deg] hover:bg-white hover:scale-105 transition-transform"
-                            onClick={handleReturnToBase}
-                        >
-                            進入基地
-                        </button>
-                    </div>
-                )}
+                {
+                    appState === 'TUTORIAL_DEBRIEF' && (
+                        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in p-8 text-center">
+                            <h2 className="text-4xl md:text-6xl font-black text-[#00FFFF] mb-6">SIGNAL ESTABLISHED</h2>
+                            <p className="text-gray-300 max-w-md mb-12 leading-relaxed tracking-wider">
+                                戰鬥數據已上傳。<br />
+                                指揮官權限已解鎖。<br />
+                                歡迎來到 SYNAPSE 神經網絡。
+                            </p>
+                            <button
+                                className="px-8 py-4 bg-[#00FFFF] text-black font-black tracking-widest text-xl uppercase skew-x-[-10deg] hover:bg-white hover:scale-105 transition-transform"
+                                onClick={handleReturnToBase}
+                            >
+                                進入基地
+                            </button>
+                        </div>
+                    )
+                }
 
                 {/* State: GAME_OVER */}
-                {appState === 'GAME_OVER' && (
-                    <GameOverScreen />
-                )}
+                {
+                    appState === 'GAME_OVER' && (
+                        <GameOverScreen />
+                    )
+                }
 
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

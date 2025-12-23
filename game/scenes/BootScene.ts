@@ -24,6 +24,17 @@ export class BootScene extends Phaser.Scene {
         super('BootScene');
     }
 
+    preload() {
+        // [CLEANUP] Assets removed.
+        // this.load.image('bg_hideout_papercut', 'assets/bg/bg_hideout_papercut.png');
+
+        // [FIX] Generate 'flare' texture programmatically (since we don't have the file yet)
+        const graphics = this.make.graphics({ x: 0, y: 0 }, false);
+        graphics.fillStyle(0xffffff, 1);
+        graphics.fillCircle(4, 4, 4);
+        graphics.generateTexture('flare', 8, 8);
+    }
+
     create() {
         // 1. CRT Background
         this.cameras.main.setBackgroundColor('#001100');
@@ -95,6 +106,11 @@ export class BootScene extends Phaser.Scene {
             if (soundManager.context && soundManager.context.state === 'suspended') {
                 soundManager.context.resume();
             }
+            this.completeBoot();
+        });
+
+        // [FIX] Listen for React UI Event (BootScreen click)
+        EventBus.on('BOOT_COMPLETE', () => {
             this.completeBoot();
         });
     }

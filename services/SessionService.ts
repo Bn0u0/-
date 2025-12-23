@@ -64,6 +64,7 @@ class SessionService {
 
         // [NEW] Boot Sequence Listener
         EventBus.on('BOOT_COMPLETE', () => {
+            console.log("🔥 [Session] BOOT_COMPLETE received! Transitioning to MAIN_MENU.");
             this.updateState({ appState: 'MAIN_MENU' });
         });
     }

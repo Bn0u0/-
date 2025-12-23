@@ -20,9 +20,24 @@ export const ArsenalOverlay: React.FC<Props> = ({ currentWeapon, inventory }) =>
     const touchStartY = useRef<number | null>(null);
 
     // --- Logic ---
-    const handleEquip = (item: ItemInstance) => {
-        console.log("Equipping:", item.name);
-        // EventBus.emit('EQUIP_ITEM', item.uid); 
+    const [sellingMode, setSellingMode] = useState(false); // [NEW] Sell Mode Toggle
+
+    // --- Logic ---
+    const handleItemClick = (item: ItemInstance) => {
+        if (sellingMode) {
+            // Sell Logic
+            if (confirm(`Sell ${item.name} for credits?`)) {
+                // We need to import inventoryService or use EventBus?
+                // Ideally EventBus to decouple, but direct service is faster for prototype
+                const val = sessionService.sellItem(item.uid); // Need to expose sell via Session or import Inventory
+                // Force Update? React might not know inventory changed unless props update.
+                // SessionService emits change, parent updates props.
+            }
+        } else {
+            // Equip Logic
+            console.log("Equipping:", item.name);
+            EventBus.emit('EQUIP_ITEM', item.uid);
+        }
     };
 
     const handleBack = () => {
@@ -30,20 +45,6 @@ export const ArsenalOverlay: React.FC<Props> = ({ currentWeapon, inventory }) =>
         setTimeout(() => {
             EventBus.emit('WORKBENCH_ACTION', 'BACK');
         }, 200); // Wait for exit animation
-    };
-
-    // --- Gestures (Swipe Down to Close) ---
-    const handleTouchStart = (e: React.TouchEvent) => {
-        touchStartY.current = e.touches[0].clientY;
-    };
-
-    const handleTouchEnd = (e: React.TouchEvent) => {
-        if (!touchStartY.current) return;
-        const diffY = e.changedTouches[0].clientY - touchStartY.current;
-        if (diffY > 50) { // Should be positive for DOWN swipe
-            handleBack();
-        }
-        touchStartY.current = null;
     };
 
     // --- Render Components ---
@@ -59,41 +60,10 @@ export const ArsenalOverlay: React.FC<Props> = ({ currentWeapon, inventory }) =>
 
     return (
         <div className="absolute inset-0 z-50 flex flex-col pointer-events-none overflow-hidden">
+            {/* ... (Zone A) ... */}
 
-            {/* [ZONE A] THE STAGE (Top 60%) */}
-            {/* Pure Display. No Touching. */}
-            <div className="flex-[6] w-full p-6 pt-12 flex flex-col justify-end pointer-events-none bg-gradient-to-b from-black/20 to-transparent">
-                {currentWeapon && (
-                    <div className={classNames("transition-all duration-500 transform", isClosing ? "opacity-0 translate-y-[-20px]" : "translate-y-0 opacity-100")}>
-                        <div className="text-[#00FFFF] border-l-4 border-[#00FFFF] pl-4 drop-shadow-[0_0_10px_rgba(0,255,255,0.5)]">
-                            <h3 className="text-[10px] font-bold opacity-70 tracking-[0.2em] mb-1">EQUIPPED SYSTEM</h3>
-                            <h1 className="text-4xl font-black uppercase mb-1">{currentWeapon.name}</h1>
-                            <div className="flex space-x-6 font-mono text-xs text-cyan-200 mt-2">
-                                <div className="flex flex-col">
-                                    <span className="opacity-50 text-[10px]">PWR</span>
-                                    <span className="text-xl text-white">{currentWeapon.computedStats?.damage || '-'}</span>
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="opacity-50 text-[10px]">RPM</span>
-                                    <span className="text-xl text-white">{currentWeapon.computedStats?.fireRate || '-'}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* [ZONE B] THE COCKPIT (Bottom 40%) */}
-            {/* High Interaction. */}
-            <div
-                className={classNames(
-                    "flex-[4] w-full pointer-events-auto bg-gradient-to-t from-black via-black/95 to-transparent flex flex-col justify-end pb-8 px-4 rounded-t-3xl border-t border-white/10 backdrop-blur-md",
-                    isClosing ? "translate-y-full transition-transform duration-200 ease-in" : "animate-slide-up"
-                )}
-                onTouchStart={handleTouchStart}
-                onTouchEnd={handleTouchEnd}
-            >
-                {/* Drag Handle (Visual Cue for Swipe) */}
+            <div className={classNames(/* ... */)}>
+                {/* Drag Handle */}
                 <div className="w-full flex justify-center mb-4 pt-2" onClick={handleBack}>
                     <div className="w-12 h-1 bg-white/20 rounded-full" />
                 </div>
@@ -102,26 +72,43 @@ export const ArsenalOverlay: React.FC<Props> = ({ currentWeapon, inventory }) =>
                     <h2 className="text-[#FFAA00] font-black text-xl italic tracking-tighter drop-shadow-md">
                         ARSENAL STORAGE
                     </h2>
-                    <span className="text-[#FFAA00]/50 text-[10px] font-mono animate-pulse">
-                        ONLINE
-                    </span>
+
+                    {/* [NEW] SELL TOGGLE */}
+                    <button
+                        onClick={() => setSellingMode(!sellingMode)}
+                        className={classNames(
+                            "px-3 py-1 text-xs font-bold border rounded transition-all pointer-events-auto",
+                            sellingMode ? "bg-red-500 text-white border-red-500 animate-pulse" : "bg-transparent text-[#FFAA00] border-[#FFAA00]"
+                        )}
+                    >
+                        {sellingMode ? "SELL MODE ACTIVE" : "SELL ITEMS"}
+                    </button>
                 </div>
 
-                {/* Grid Container - Scrollable */}
-                <div className="grid grid-cols-3 gap-3 overflow-y-auto custom-scrollbar pb-8 max-h-[300px]">
-                    {/* Real Inventory (+ Mocks) */}
+                {/* Grid Container */}
+                <div className="grid grid-cols-3 gap-3 overflow-y-auto custom-scrollbar pb-8 max-h-[300px] pointer-events-auto">
                     {[...inventory, ...MOCK_ITEMS].map((item, idx) => (
                         <div
                             key={idx}
-                            onClick={() => handleEquip(item)}
-                            className="aspect-square bg-[#FFAA00]/5 border border-[#FFAA00]/20 p-2 flex flex-col justify-between active:bg-[#FFAA00]/30 active:scale-95 transition-all cursor-pointer relative group overflow-hidden"
+                            onClick={() => handleItemClick(item)}
+                            className={classNames(
+                                "aspect-square border p-2 flex flex-col justify-between active:scale-95 transition-all cursor-pointer relative group overflow-hidden",
+                                sellingMode ? "bg-red-900/20 border-red-500/50 hover:bg-red-500/20" : "bg-[#FFAA00]/5 border-[#FFAA00]/20 hover:bg-[#FFAA00]/20"
+                            )}
                         >
-                            <div className="text-[10px] text-[#FFAA00]/70 leading-none tracking-wider">{item.rarity.substring(0, 3)}</div>
-                            <div className="font-bold text-[#FFAA00] text-xs leading-none break-words z-10 drop-shadow-sm">{item.name}</div>
+                            <div className="text-[10px] opacity-70 leading-none tracking-wider text-inherit">
+                                {item.rarity.substring(0, 3)}
+                            </div>
+                            <div className="font-bold text-xs leading-none break-words z-10 drop-shadow-sm text-inherit">
+                                {item.name}
+                            </div>
 
-                            {/* Selection Highlight */}
-                            <div className="absolute inset-0 border-2 border-[#FFAA00] opacity-0 group-hover:opacity-100 transition-opacity" />
-                            {/* Background Noise/Texture */}
+                            {/* Cost Preview in Sell Mode */}
+                            {sellingMode && (
+                                <div className="absolute top-1 right-1 text-[10px] text-red-300 font-mono">$</div>
+                            )}
+
+                            {/* Background Noise */}
                             <div className="absolute inset-0 opacity-10 bg-[url('/assets/ui/noise.png')] mix-blend-overlay pointer-events-none" />
                         </div>
                     ))}

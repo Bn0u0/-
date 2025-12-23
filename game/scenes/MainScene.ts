@@ -141,8 +141,25 @@ export class MainScene extends Phaser.Scene {
         if (!this.playerManager.myUnit) return;
 
         // Check overlap with extraction zones
-        // (Handled by ExtractionManager mostly, but we trigger the end here)
-        // this.extractionManager.checkExtraction(this.playerManager.myUnit);
+        if (this.extractionManager.checkExtraction(this.playerManager.myUnit)) {
+            // [CORE LOOP] Success!
+            console.log("🚁 [MainScene] Extraction Successful!");
+
+            // 1. Secure Loot
+            const securedCount = inventoryService.secureBackpack();
+            EventBus.emit('SHOW_FLOATING_TEXT', {
+                x: this.playerManager.myUnit.x,
+                y: this.playerManager.myUnit.y - 100,
+                text: `EXTRACTED! +${securedCount} ITEMS`,
+                color: '#00FF00'
+            });
+
+            // 2. Play Sound
+            EventBus.emit('PLAY_SFX', 'EXTRACTION_COMPLETE');
+
+            // 3. Game Over (Win)
+            this.gameOver(true);
+        }
     }
 
     public handleLootPickup(item: any) {

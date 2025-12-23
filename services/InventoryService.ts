@@ -230,6 +230,30 @@ class InventoryService {
         this.save();
     }
 
+    // [ECONOMY] Sell Item
+    public sellItem(itemUid: string): number {
+        const idx = this.state.stash.findIndex(i => i.uid === itemUid);
+        if (idx === -1) return 0;
+
+        const item = this.state.stash[idx];
+
+        // Calculate Value (Simple formula for now)
+        let value = 10;
+        if (item.rarity === 'RARE') value = 50;
+        if (item.rarity === 'EPIC') value = 200;
+        if (item.rarity === 'LEGENDARY') value = 1000;
+
+        // Remove from stash
+        this.state.stash.splice(idx, 1);
+
+        // Add Credits
+        this.state.credits += value;
+
+        this.save();
+        console.log(`💰 [Inventory] Sold ${item.name} for ${value} credits.`);
+        return value;
+    }
+
     // [COMPAT] Legacy Logic Support
     public processLootBag(lootDefIds: string[]) {
         lootDefIds.forEach(id => this.addItemToStash(id));
@@ -303,3 +327,10 @@ class InventoryService {
 }
 
 export const inventoryService = new InventoryService();
+
+// [DEBUG] Expose to Window for Console Testing
+(window as any).inventoryService = inventoryService;
+// (window as any).persistence = persistence; // Removed to avoid import errors
+// (window as any).session = sessionService; // Removed to avoid circular dependency
+
+console.log("🛠️ [InventoryService] Loaded & Exposed to Window");

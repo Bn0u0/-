@@ -130,8 +130,10 @@ class SessionService {
             });
         }
 
-        // Death Penalty
-        inventoryService.punishDeath('SCAVENGER');
+        // Death Penalty (Only on failure)
+        if (!data.success) {
+            inventoryService.punishDeath('SCAVENGER');
+        }
 
         // FTUE Check
         if (!currentProfile.hasPlayedOnce) {
@@ -183,6 +185,13 @@ class SessionService {
     }
 
     // --- Store Pattern ---
+    public sellItem(uid: string) {
+        // Wrapper for InventoryService
+        const val = inventoryService.sellItem(uid);
+        this.refreshProfile(); // Trigger UI Update
+        return val;
+    }
+
     public subscribe(cb: (s: SessionState) => void) {
         this.listeners.push(cb);
         cb(this.state); // Immediate trigger
